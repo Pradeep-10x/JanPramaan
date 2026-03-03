@@ -57,12 +57,15 @@ app.use('/uploads', express.static(path.resolve(config.uploadDir)));
 // ─── Health check ─────────────────────────────────────────
 app.get('/health', async (_req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ ok: true, db: true, timestamp: new Date().toISOString() });
-  } catch {
+     await prisma.$queryRaw`SELECT 1`; // Check DB connectivity
+    res.status(200).json({ ok: true, db: true });
+  }
+  catch (error) {
+    logger.error('Health check failed', { error });
     res.status(503).json({ ok: false, db: false });
   }
-});
+}
+);
 
 // ─── API routes ───────────────────────────────────────────
 app.use('/api/auth', authRoutes);
