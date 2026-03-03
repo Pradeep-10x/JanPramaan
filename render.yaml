@@ -19,3 +19,5 @@ services:
         value: "10000"
       - key: UPLOAD_DIR
         value: ./uploads
+      - key: NODE_TLS_REJECT_UNAUTHORIZED
+        value: "0"

@@ -33,6 +33,7 @@ import proofRoutes from './routes/proof.routes';
 import residentsRoutes from './routes/residents.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import metricsRoutes from './routes/metrics.routes';
+import otpRoutes from "./routes/otp.js";
 
 // Verification route (inline)
 import { Router } from 'express';
@@ -68,6 +69,7 @@ app.get('/health', async (_req, res) => {
 );
 
 // ─── API routes ───────────────────────────────────────────
+app.use("/api/otp", otpRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/admin-units', adminUnitRoutes);

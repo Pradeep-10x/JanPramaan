@@ -8,7 +8,7 @@ import { prisma } from '../prisma/client';
 import { config } from '../config';
 import { AppError } from '../middleware/error.middleware';
 import { Role } from '../generated/prisma/client.js';
-
+import { isEmailVerified, cleanupUsedOtp } from "./otp.js";
 const SALT_ROUNDS = 12;
 
 export interface RegisterInput {
@@ -28,6 +28,13 @@ export interface LoginInput {
  */
 export async function registerUser(input: RegisterInput) {
   // Validate ward if provided
+    const emailVerified = await isEmailVerified(input.email as string);
+  if (!emailVerified) {
+    throw Object.assign(new Error("Email not verified. Please verify your email with OTP first."), {
+      statusCode: 400,
+    });
+  }
+
   if (input.wardId) {
     const ward = await prisma.adminUnit.findUnique({ where: { id: input.wardId } });
     if (!ward || ward.type !== 'WARD') {
@@ -44,6 +51,7 @@ export async function registerUser(input: RegisterInput) {
   }
 
   const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
+   
 
   const user = await prisma.user.create({
     data: {
@@ -55,7 +63,7 @@ export async function registerUser(input: RegisterInput) {
     },
     select: { id: true, name: true, email: true, role: true, adminUnitId: true, createdAt: true },
   });
-
+     await cleanupUsedOtp(input.email as string);
   const token = jwt.sign({ userId: user.id, role: user.role }, config.jwtSecret, { expiresIn: '24h' });
 
   return { token, user };
