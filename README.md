@@ -4,7 +4,7 @@
 
 ---
 
-## Tech Stack
+## Tech Stackk
 
 - **Runtime**: Node.js ≥ 18, TypeScript
 - **Framework**: Express 5
