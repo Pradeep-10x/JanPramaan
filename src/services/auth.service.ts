@@ -75,7 +75,18 @@ export async function registerUser(input: RegisterInput) {
     },
     select: { id: true, name: true, email: true, role: true, adminUnitId: true, createdAt: true },
   });
-     await cleanupUsedOtp(input.email as string);
+
+  await cleanupUsedOtp(input.email as string);
+
+  // Audit log — user is the actor for their own registration
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      action: 'USER_REGISTERED',
+      metadata: { email: user.email, wardId: resolvedWardId ?? null },
+    },
+  });
+
   const token = jwt.sign({ userId: user.id, role: user.role }, config.jwtSecret, { expiresIn: '24h' });
 
   return { token, user };
@@ -96,6 +107,15 @@ export async function loginUser(input: LoginInput) {
   }
 
   const token = jwt.sign({ userId: user.id, role: user.role }, config.jwtSecret, { expiresIn: '24h' });
+
+  // Audit log
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      action: 'USER_LOGIN',
+      metadata: { email: user.email },
+    },
+  });
 
   return {
     token,

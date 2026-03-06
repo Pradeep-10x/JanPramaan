@@ -320,6 +320,12 @@ export async function convertIssueToProject(
     throw new AppError(404, 'NOT_FOUND', 'Issue not found');
   }
 
+  // Resolve project status based on actor's role (mirrors project.service.ts logic)
+  const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { role: true } });
+  const projectStatus = actor?.role === Role.ADMIN
+    ? ProjectStatus.ACTIVE    // ADMIN → auto-approved
+    : ProjectStatus.PROPOSED; // OFFICER → needs admin approval
+
   // Use a transaction to ensure atomicity
   const [project] = await prisma.$transaction([
     prisma.project.create({
@@ -327,7 +333,7 @@ export async function convertIssueToProject(
         title: input.title,
         description: input.description ?? '',
         budget: input.budget,
-        status: ProjectStatus.PROPOSED,
+        status: projectStatus,
         adminUnitId: issue.wardId,
         createdById: actorId,
       },
@@ -350,7 +356,7 @@ export async function convertIssueToProject(
         projectId: project.id,
         actorId,
         action: 'ISSUE_CONVERTED_TO_PROJECT',
-        metadata: { projectTitle: input.title, budget: input.budget },
+        metadata: { projectTitle: input.title, budget: input.budget, projectStatus },
       },
     }),
   ]);

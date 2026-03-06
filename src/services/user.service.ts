@@ -20,7 +20,7 @@ export interface CreateUserInput {
 /**
  * Create a user with any role (ADMIN-only action).
  */
-export async function createUser(input: CreateUserInput) {
+export async function createUser(input: CreateUserInput, actorId: string) {
   if (input.email) {
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {
@@ -37,7 +37,7 @@ export async function createUser(input: CreateUserInput) {
 
   const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
 
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: input.name,
       email: input.email,
@@ -47,9 +47,19 @@ export async function createUser(input: CreateUserInput) {
     },
     select: { id: true, name: true, email: true, role: true, adminUnitId: true, createdAt: true },
   });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId,
+      action: 'USER_CREATED',
+      metadata: { createdUserId: user.id, role: input.role, adminUnitId: input.adminUnitId ?? null },
+    },
+  });
+
+  return user;
 }
 
-export async function createContractor(input: CreateUserInput) {
+export async function createContractor(input: CreateUserInput, actorId: string) {
 
   if(input.role !== "CONTRACTOR"){
     throw new AppError(400, 'INVALID_ROLE', 'Role must be CONTRACTOR');
@@ -61,7 +71,7 @@ export async function createContractor(input: CreateUserInput) {
       throw new AppError(409, 'EMAIL_EXISTS', 'A user with that email already exists');
     }
   }
-   
+
   if (input.adminUnitId) {
     const unit = await prisma.adminUnit.findUnique({ where: { id: input.adminUnitId } });
     if (!unit) {
@@ -71,7 +81,7 @@ export async function createContractor(input: CreateUserInput) {
 
   const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
 
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: input.name,
       email: input.email,
@@ -81,6 +91,16 @@ export async function createContractor(input: CreateUserInput) {
     },
     select: { id: true, name: true, email: true, role: true, adminUnitId: true, createdAt: true },
   });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId,
+      action: 'CONTRACTOR_CREATED',
+      metadata: { createdUserId: user.id, adminUnitId: input.adminUnitId ?? null },
+    },
+  });
+
+  return user;
 }
 
 /**

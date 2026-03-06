@@ -12,7 +12,7 @@ export async function createUser(req: Request, res: Response, next: NextFunction
     const result = await userService.createUser({
       ...req.body,
       adminUnitId: req.user!.adminUnitId,
-    });
+    }, req.user!.id);
     res.status(201).json(result);
   } catch (err) {
     next(err);
@@ -24,7 +24,7 @@ export async function createContractor(req: Request, res: Response, next: NextFu
     const result = await userService.createContractor({
       ...req.body,
       adminUnitId: req.user!.adminUnitId,
-    });
+    }, req.user!.id);
     res.status(201).json(result);
   } catch (err) {
     next(err);
@@ -104,6 +104,18 @@ export async function updateMyWard(req: Request, res: Response, next: NextFuncti
       where: { id: req.user!.id },
       data: { adminUnitId: resolvedWardId },
       select: { id: true, name: true, email: true, role: true, adminUnitId: true },
+    });
+
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        action: 'WARD_UPDATED',
+        metadata: {
+          newWardId: resolvedWardId,
+          method: wardId ? 'MANUAL' : 'GPS',
+        },
+      },
     });
 
     res.json({ user, wardId: resolvedWardId });
