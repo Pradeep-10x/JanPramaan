@@ -3,6 +3,9 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import * as userService from '../services/user.service';
+import { getNearestWard } from '../services/adminUnit.service.js';
+import { prisma } from '../prisma/client.js';
+import { AppError } from '../middleware/error.middleware.js';
 
 export async function createUser(req: Request, res: Response, next: NextFunction) {
   try {
@@ -32,6 +35,46 @@ export async function getMe(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await userService.getUserProfile(req.user!.id);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/users/me/ward
+ * Update the citizen's ward — either by passing a wardId (manual)
+ * or deviceLat/deviceLng (auto-detect nearest ward).
+ */
+export async function updateMyWard(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { wardId, deviceLat, deviceLng } = req.body;
+
+    let resolvedWardId: string;
+
+    if (wardId) {
+      // Manual selection from dropdown
+      const ward = await prisma.adminUnit.findUnique({ where: { id: wardId } });
+      if (!ward || ward.type !== 'WARD') {
+        throw new AppError(400, 'INVALID_WARD', 'wardId must reference an existing WARD');
+      }
+      resolvedWardId = wardId;
+    } else {
+      const lat = parseFloat(deviceLat);
+      const lng = parseFloat(deviceLng);
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new AppError(400, 'LOCATION_REQUIRED', 'Provide wardId or deviceLat + deviceLng');
+      }
+      const nearest = await getNearestWard(lat, lng);
+      resolvedWardId = nearest.wardId;
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { adminUnitId: resolvedWardId },
+      select: { id: true, name: true, email: true, role: true, adminUnitId: true },
+    });
+
+    res.json({ user, wardId: resolvedWardId });
   } catch (err) {
     next(err);
   }

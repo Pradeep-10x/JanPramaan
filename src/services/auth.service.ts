@@ -9,13 +9,16 @@ import { config } from '../config';
 import { AppError } from '../middleware/error.middleware';
 import { Role } from '../generated/prisma/client.js';
 import { isEmailVerified, cleanupUsedOtp } from "./otp.js";
+import { getNearestWard } from "./adminUnit.service.js";
 const SALT_ROUNDS = 12;
 
 export interface RegisterInput {
   name: string;
   email?: string;
   password: string;
-  wardId?: string;
+  wardId?: string;      // manual override from "Change ward" dropdown
+  deviceLat?: number;
+  deviceLng?: number;
 }
 
 export interface LoginInput {
@@ -35,11 +38,20 @@ export async function registerUser(input: RegisterInput) {
     });
   }
 
+  // Resolve adminUnitId: manual wardId > device GPS auto-detect > null
+  let resolvedWardId: string | undefined = undefined;
+
   if (input.wardId) {
+    // Manual selection from frontend dropdown — validate it exists
     const ward = await prisma.adminUnit.findUnique({ where: { id: input.wardId } });
     if (!ward || ward.type !== 'WARD') {
       throw new AppError(400, 'INVALID_WARD', 'wardId must reference an existing WARD');
     }
+    resolvedWardId = input.wardId;
+  } else if (input.deviceLat !== undefined && input.deviceLng !== undefined) {
+    // Auto-detect from device GPS
+    const nearest = await getNearestWard(input.deviceLat, input.deviceLng);
+    resolvedWardId = nearest.wardId;
   }
 
   // Check email uniqueness (if provided)
@@ -59,7 +71,7 @@ export async function registerUser(input: RegisterInput) {
       email: input.email,
       passwordHash,
       role: Role.CITIZEN,
-      adminUnitId: input.wardId,
+      adminUnitId: resolvedWardId ?? null,
     },
     select: { id: true, name: true, email: true, role: true, adminUnitId: true, createdAt: true },
   });

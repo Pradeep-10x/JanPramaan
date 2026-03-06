@@ -11,5 +11,6 @@ const router = Router();
 router.post('/create-user', authMiddleware, requireRole('ADMIN'), usersCtrl.createUser);
 router.post('/contractor', authMiddleware, requireRole('ADMIN', 'OFFICER'), usersCtrl.createContractor);
 router.get('/me', authMiddleware, usersCtrl.getMe);
+router.patch('/me/ward', authMiddleware, usersCtrl.updateMyWard);
 
 export default router;

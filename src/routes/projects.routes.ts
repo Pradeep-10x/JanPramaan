@@ -11,6 +11,7 @@ const router = Router();
 
 router.post('/', authMiddleware, requireRole('ADMIN'), projectsCtrl.create);
 router.get('/', projectsCtrl.list);
+router.get('/my-ward', authMiddleware, projectsCtrl.myWard);  // all projects in citizen's ward
 router.post('/:projectId/issues', authMiddleware, upload.single('photo'), issuesCtrl.create);
 router.get('/:projectId/issues', issuesCtrl.list);
 

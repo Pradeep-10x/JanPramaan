@@ -210,13 +210,15 @@ export async function listIssues(filters: {
   status?: IssueStatus;
   assignedToId?: string;
   projectId?: string;
+  createdById?: string;
 }) {
   return prisma.issue.findMany({
     where: {
-      ...(filters.wardId && { wardId: filters.wardId }),
-      ...(filters.status && { status: filters.status }),
+      ...(filters.wardId      && { wardId:       filters.wardId }),
+      ...(filters.status      && { status:       filters.status }),
       ...(filters.assignedToId && { assignedToId: filters.assignedToId }),
-       ...(filters.projectId && { projectId: filters.projectId }),
+      ...(filters.projectId   && { projectId:    filters.projectId }),
+      ...(filters.createdById && { createdById:  filters.createdById }),
     },
     include: {
       ward: { select: { id: true, name: true } },
@@ -237,13 +239,17 @@ export async function getIssueById(id: string) {
     include: {
       ward: true,
       project: { select: { id: true, title: true, status: true } },
-      createdBy: { select: { id: true, name: true } },
+      createdBy:  { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true } },
+      acceptedBy: { select: { id: true, name: true } },
+      rejectedBy: { select: { id: true, name: true } },
       evidence: {
         orderBy: { uploadedAt: 'asc' },
         include: { uploadedBy: { select: { id: true, name: true } } },
       },
-      verification: true,
+      verification: {
+        include: { verifiedBy: { select: { id: true, name: true } } },
+      },
       duplicateOf: { select: { id: true, title: true } },
     },
   });

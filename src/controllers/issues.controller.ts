@@ -72,9 +72,10 @@ export async function list(req: Request, res: Response, next: NextFunction) {
     const projectId = typeof rawProjectId === 'string' ? rawProjectId : undefined;
 
     const result = await issueService.listIssues({
-      wardId: req.query.wardId as string | undefined,
-      status: req.query.status as any,
-      assignedToId: req.query.assignedTo as string | undefined,
+      wardId:       req.query.wardId       as string | undefined,
+      status:       req.query.status       as any,
+      assignedToId: req.query.assignedTo   as string | undefined,
+      createdById:  req.query.createdById  as string | undefined,
       projectId,
     });
     res.json(result);
@@ -83,6 +84,45 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   }
 }
 // ...existing code...
+
+/**
+ * GET /api/issues/mine
+ * Returns all issues created by the logged-in citizen, newest first.
+ */
+export async function mine(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await issueService.listIssues({
+      createdById: req.user!.id,
+      status: req.query.status as any,
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/issues/my-ward
+ * Returns all issues in the logged-in citizen's ward — full transparency.
+ */
+export async function myWard(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user!.adminUnitId) {
+      res.status(400).json({
+        error: 'NO_WARD',
+        message: 'Your account has no ward set. Update it via PATCH /api/users/me/ward',
+      });
+      return;
+    }
+    const result = await issueService.listIssues({
+      wardId: req.user!.adminUnitId,
+      status: req.query.status as any,
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function getById(req: Request, res: Response, next: NextFunction) {
   try {

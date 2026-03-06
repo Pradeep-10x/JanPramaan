@@ -4,33 +4,46 @@
  */
 import { prisma } from '../prisma/client';
 import { AppError } from '../middleware/error.middleware';
-import { ProjectStatus } from '../generated/prisma/client.js';
+import { ProjectStatus, Role } from '../generated/prisma/client.js';
 
 export interface CreateProjectInput {
   title: string;
   description?: string;
   adminUnitId: string;
-  createdById: string;
   budget?: number;
 }
 
 /**
- * Create a new project (ADMIN only). Defaults to PROPOSED status.
+ * Create a new project.
+ * - ADMIN → auto-approved (status: APPROVED)
+ * - OFFICER → requires admin approval (status: PROPOSED)
  */
-export async function createProject(input: CreateProjectInput) {
+export async function createProject(input: CreateProjectInput, createdById: string) {
   const unit = await prisma.adminUnit.findUnique({ where: { id: input.adminUnitId } });
   if (!unit) {
     throw new AppError(400, 'INVALID_UNIT', 'Admin unit not found');
   }
+
+  const creator = await prisma.user.findUnique({
+    where: { id: createdById },
+    select: { role: true },
+  });
+  if (!creator) {
+    throw new AppError(404, 'USER_NOT_FOUND', 'Creator not found');
+  }
+
+  const status = creator.role === Role.ADMIN
+    ? ProjectStatus.ACTIVE    // admin → auto-approved, immediately active
+    : ProjectStatus.PROPOSED; // officer → needs admin approval
 
   const project = await prisma.project.create({
     data: {
       title: input.title,
       description: input.description ?? '',
       adminUnitId: input.adminUnitId,
-      createdById: input.createdById,
+      createdById,
       budget: input.budget,
-      status: ProjectStatus.PROPOSED,
+      status,
     },
     include: { adminUnit: true, createdBy: { select: { id: true, name: true } } },
   });
@@ -39,9 +52,9 @@ export async function createProject(input: CreateProjectInput) {
   await prisma.auditLog.create({
     data: {
       projectId: project.id,
-      actorId: input.createdById,
+      actorId: createdById,
       action: 'PROJECT_CREATED',
-      metadata: { title: input.title, status: 'PROPOSED' },
+      metadata: { title: input.title, status },
     },
   });
 
@@ -75,7 +88,20 @@ export async function getProjectById(id: string) {
     include: {
       adminUnit: true,
       createdBy: { select: { id: true, name: true } },
-      issues: { select: { id: true, title: true, status: true } },
+      issues: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          department: true,
+          createdAt: true,
+          createdBy: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, name: true } },
+          _count: { select: { evidence: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
+      _count: { select: { issues: true } },
     },
   });
 
