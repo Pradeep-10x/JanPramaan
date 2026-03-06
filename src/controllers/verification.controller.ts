@@ -41,6 +41,11 @@ export async function verifyIssue(req: Request, res: Response, next: NextFunctio
       throw new AppError(409, 'ALREADY_VERIFIED', 'Issue has already been verified');
     }
 
+    // Must be in UNDER_REVIEW — inspector must have submitted after photo
+    if (issue.status !== IssueStatus.UNDER_REVIEW) {
+      throw new AppError(400, 'INVALID_STATUS', 'Issue must be UNDER_REVIEW before verification. Inspector must submit an AFTER photo first.');
+    }
+
     // Check evidence exists for APPROVED
     if (verdict === 'APPROVED') {
       const hasBefore = issue.evidence.some((e: Evidence) => e.type === 'BEFORE');

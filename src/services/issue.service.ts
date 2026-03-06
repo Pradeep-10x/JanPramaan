@@ -5,7 +5,7 @@
  */
 import { prisma } from '../prisma/client';
 import { AppError } from '../middleware/error.middleware';
-import { IssueStatus, ProjectStatus, Role } from '../generated/prisma/client.js';
+import { IssueStatus, ProjectStatus, Role, EvidenceType } from '../generated/prisma/client.js';
 import { config } from '../config';
 
 export interface CreateIssueInput {
@@ -387,6 +387,115 @@ export async function toggleDuplicate(issueId: string, actorId: string, duplicat
         actorId,
         action: newDuplicateOfId ? 'ISSUE_MARKED_DUPLICATE' : 'ISSUE_UNMARKED_DUPLICATE',
         metadata: { duplicateOfId: newDuplicateOfId },
+      },
+    }),
+  ]);
+
+  return updated;
+}
+
+/**
+ * Assign an inspector to an issue (OFFICER/ADMIN action).
+ * Issue must be ACCEPTED. Inspector must have INSPECTOR role.
+ * Status transitions: ACCEPTED → INSPECTING
+ */
+export async function assignInspector(issueId: string, actorId: string, inspectorId: string) {
+  const issue = await prisma.issue.findUnique({ where: { id: issueId } });
+  if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+  if (issue.status !== IssueStatus.ACCEPTED)
+    throw new AppError(400, 'INVALID_STATUS', 'Issue must be ACCEPTED before assigning an inspector');
+
+  const inspector = await prisma.user.findUnique({ where: { id: inspectorId } });
+  if (!inspector || inspector.role !== Role.INSPECTOR)
+    throw new AppError(400, 'INVALID_USER', 'User must have INSPECTOR role');
+
+  const [updated] = await prisma.$transaction([
+    prisma.issue.update({
+      where: { id: issueId },
+      data: { inspectorId, status: IssueStatus.INSPECTING },
+      include: {
+        inspector: { select: { id: true, name: true } },
+        ward: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        issueId, actorId,
+        action: 'INSPECTOR_ASSIGNED',
+        metadata: { inspectorId, inspectorName: inspector.name },
+      },
+    }),
+  ]);
+
+  return updated;
+}
+
+/**
+ * Hire a contractor for an issue (OFFICER/ADMIN action).
+ * Issue must be INSPECTING and a BEFORE photo must already be uploaded.
+ * Status transitions: INSPECTING → CONTRACTOR_ASSIGNED
+ */
+export async function hireContractor(issueId: string, actorId: string, contractorId: string) {
+  const issue = await prisma.issue.findUnique({
+    where: { id: issueId },
+    include: { evidence: { where: { type: EvidenceType.BEFORE } } },
+  });
+  if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+  if (issue.status !== IssueStatus.INSPECTING)
+    throw new AppError(400, 'INVALID_STATUS', 'Inspector must be assigned first (status must be INSPECTING)');
+  if (issue.evidence.length === 0)
+    throw new AppError(400, 'MISSING_BEFORE_PHOTO', 'Inspector must upload a BEFORE photo before a contractor is hired');
+
+  const contractor = await prisma.user.findUnique({ where: { id: contractorId } });
+  if (!contractor || contractor.role !== Role.CONTRACTOR)
+    throw new AppError(400, 'INVALID_USER', 'User must have CONTRACTOR role');
+
+  const [updated] = await prisma.$transaction([
+    prisma.issue.update({
+      where: { id: issueId },
+      data: { contractorId, status: IssueStatus.CONTRACTOR_ASSIGNED },
+      include: {
+        contractor: { select: { id: true, name: true } },
+        inspector:  { select: { id: true, name: true } },
+        ward:       { select: { id: true, name: true } },
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        issueId, actorId,
+        action: 'CONTRACTOR_HIRED',
+        metadata: { contractorId, contractorName: contractor.name },
+      },
+    }),
+  ]);
+
+  return updated;
+}
+
+/**
+ * Contractor marks their work as done.
+ * Only the assigned contractor can call this.
+ * Status transitions: CONTRACTOR_ASSIGNED → WORK_DONE
+ */
+export async function markWorkDone(issueId: string, actorId: string) {
+  const issue = await prisma.issue.findUnique({ where: { id: issueId } });
+  if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+  if (issue.contractorId !== actorId)
+    throw new AppError(403, 'FORBIDDEN', 'Only the assigned contractor can mark work as done');
+  if (issue.status !== IssueStatus.CONTRACTOR_ASSIGNED)
+    throw new AppError(400, 'INVALID_STATUS', 'Issue must be in CONTRACTOR_ASSIGNED status');
+
+  const [updated] = await prisma.$transaction([
+    prisma.issue.update({
+      where: { id: issueId },
+      data: { status: IssueStatus.WORK_DONE },
+      include: { ward: { select: { id: true, name: true } } },
+    }),
+    prisma.auditLog.create({
+      data: {
+        issueId, actorId,
+        action: 'WORK_MARKED_DONE',
+        metadata: {},
       },
     }),
   ]);

@@ -12,6 +12,7 @@ import { sha256Buffer } from '../utils/hash.util';
 import { extractExif } from '../utils/exif.util';
 import { haversineDistance } from '../utils/geo.util';
 import { config } from '../config';
+import { IssueStatus } from '../generated/prisma/client.js';
 
 
 /**
@@ -26,14 +27,38 @@ export async function uploadEvidence(
   file: Express.Multer.File,
 ) {
   // Validate issue exists
-  const issue = await prisma.issue.findUnique({ where: { id: issueId } });
+  const issue = await prisma.issue.findUnique({
+    where: { id: issueId },
+    select: { id: true, status: true, latitude: true, longitude: true, inspectorId: true },
+  });
   if (!issue) {
     throw new AppError(404, 'NOT_FOUND', 'Issue not found');
   }
 
-  // AFTER evidence requires OFFICER or CONTRACTOR
-  if (type === EvidenceType.AFTER && !['OFFICER', 'CONTRACTOR'].includes(uploaderRole)) {
-    throw new AppError(403, 'FORBIDDEN', 'Only OFFICER or CONTRACTOR can upload AFTER evidence');
+  // BEFORE photo: only the assigned INSPECTOR, issue must be INSPECTING
+  if (type === EvidenceType.BEFORE) {
+    if (uploaderRole !== Role.INSPECTOR)
+      throw new AppError(403, 'FORBIDDEN', 'Only an INSPECTOR can upload BEFORE evidence');
+    if (issue.inspectorId !== uploaderId)
+      throw new AppError(403, 'FORBIDDEN', 'Only the assigned inspector for this issue can upload BEFORE evidence');
+    if (issue.status !== IssueStatus.INSPECTING)
+      throw new AppError(400, 'INVALID_STATUS', 'Issue must be in INSPECTING status for a BEFORE photo');
+  }
+
+  // AFTER photo: only the assigned INSPECTOR, issue must be WORK_DONE
+  if (type === EvidenceType.AFTER) {
+    if (uploaderRole !== Role.INSPECTOR)
+      throw new AppError(403, 'FORBIDDEN', 'Only an INSPECTOR can upload AFTER evidence');
+    if (issue.inspectorId !== uploaderId)
+      throw new AppError(403, 'FORBIDDEN', 'Only the assigned inspector for this issue can upload AFTER evidence');
+    if (issue.status !== IssueStatus.WORK_DONE)
+      throw new AppError(400, 'INVALID_STATUS', 'Issue must be in WORK_DONE status for an AFTER photo — contractor must mark work done first');
+  }
+
+  // DOCUMENT: OFFICER or ADMIN only
+  if (type === EvidenceType.DOCUMENT) {
+    if (!['OFFICER', 'ADMIN'].includes(uploaderRole))
+      throw new AppError(403, 'FORBIDDEN', 'Only OFFICER or ADMIN can upload DOCUMENT evidence');
   }
 
   // Compute file hash
@@ -106,6 +131,22 @@ export async function uploadEvidence(
       },
     },
   });
+
+  // AFTER photo uploaded → automatically move issue to UNDER_REVIEW
+  if (type === EvidenceType.AFTER) {
+    await prisma.issue.update({
+      where: { id: issueId },
+      data: { status: IssueStatus.UNDER_REVIEW },
+    });
+    await prisma.auditLog.create({
+      data: {
+        issueId,
+        actorId: uploaderId,
+        action: 'STATUS_CHANGED_TO_UNDER_REVIEW',
+        metadata: { trigger: 'AFTER_PHOTO_UPLOADED' },
+      },
+    });
+  }
 
   return { evidence, geoWarning };
 }

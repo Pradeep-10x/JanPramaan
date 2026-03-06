@@ -14,7 +14,7 @@ export async function upload(req: Request, res: Response, next: NextFunction) {
 
     const type = ((req.query.type || req.body.type) as string) as EvidenceType;
     if (!type || !['BEFORE', 'AFTER', 'DOCUMENT'].includes(type)) {
-      res.status(400).json({ code: 'INVALID_TYPE', message: 'type must be BEFORE, AFTER, or DOCUMENT' });
+      res.status(400).json({ code: 'INVALID_TYPE', message: 'type must be BEFORE, AFTER,' });
       return;
     }
 

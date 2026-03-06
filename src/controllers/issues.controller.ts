@@ -179,6 +179,36 @@ export async function convert(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function assignInspector(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const result = await issueService.assignInspector(id, req.user!.id, req.body.inspectorId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function hireContractor(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const result = await issueService.hireContractor(id, req.user!.id, req.body.contractorId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function markWorkDone(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const result = await issueService.markWorkDone(id, req.user!.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function toggleDuplicate(req: Request, res: Response, next: NextFunction) {
   try {
     const id = req.params.id as string;
