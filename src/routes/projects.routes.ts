@@ -6,11 +6,12 @@ import * as projectsCtrl from '../controllers/projects.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
 import * as issuesCtrl from '../controllers/issues.controller';
+import { upload } from '../controllers/issues.controller';
 const router = Router();
 
 router.post('/', authMiddleware, requireRole('ADMIN'), projectsCtrl.create);
 router.get('/', projectsCtrl.list);
-router.post('/:projectId/issues', authMiddleware, issuesCtrl.create);
+router.post('/:projectId/issues', authMiddleware, upload.single('photo'), issuesCtrl.create);
 router.get('/:projectId/issues', issuesCtrl.list);
 
 router.get('/:id', projectsCtrl.getById);

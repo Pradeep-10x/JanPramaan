@@ -2,7 +2,11 @@
  * WitnessLedger — AdminUnit controller
  */
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import * as adminUnitService from '../services/adminUnit.service';
+import { extractAndValidatePhotoLocation } from '../services/exif.service';
+
+export const upload = multer({ storage: multer.memoryStorage() });
 
 export async function listUnits(req: Request, res: Response, next: NextFunction) {
   try {
@@ -45,6 +49,27 @@ export async function nearestWard(req: Request, res: Response, next: NextFunctio
 
     const result = await adminUnitService.getNearestWard(lat, lng);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function locationFromPhoto(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'NO_FILE', message: 'No photo uploaded' });
+      return;
+    }
+
+    const { lat, lng, takenAt } = await extractAndValidatePhotoLocation(req.file.buffer);
+    const ward = await adminUnitService.getNearestWard(lat, lng);
+
+    res.json({
+      latitude: lat,
+      longitude: lng,
+      takenAt: takenAt.toISOString(),
+      ...ward,
+    });
   } catch (err) {
     next(err);
   }

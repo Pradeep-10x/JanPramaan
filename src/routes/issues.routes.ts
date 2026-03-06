@@ -5,10 +5,11 @@ import { Router } from 'express';
 import * as issuesCtrl from '../controllers/issues.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
+import { upload } from '../controllers/issues.controller';
 
 const router = Router();
 
-router.post('/', authMiddleware, issuesCtrl.create);
+router.post('/', authMiddleware, upload.single('photo'), issuesCtrl.create);
 router.get('/', issuesCtrl.list);
 router.get('/:id', issuesCtrl.getById);
 router.patch('/:id/accept', authMiddleware, requireRole('OFFICER', 'ADMIN'), issuesCtrl.accept);

@@ -2,15 +2,61 @@
  * WitnessLedger — Issues controller
  */
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import * as issueService from '../services/issue.service';
 import { prisma } from '../prisma/client';
+import { tryExtractPhotoLocation } from '../services/exif.service';
+import { getNearestWard } from '../services/adminUnit.service';
+
+export const upload = multer({ storage: multer.memoryStorage() });
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
+    let latitude: number | undefined;
+    let longitude: number | undefined;
+
+    // ── Step 1: Try photo EXIF first ──────────────────────────
+    if (req.file) {
+      const exif = await tryExtractPhotoLocation(req.file.buffer);
+      if (exif) {
+        // ✅ Photo has valid GPS + fresh timestamp
+        latitude  = exif.lat;
+        longitude = exif.lng;
+      }
+      // ❌ Photo has no GPS / too old → fall through to device GPS
+    }
+
+    // ── Step 2: Fall back to device GPS sent by frontend ─────
+    if (latitude === undefined || longitude === undefined) {
+      const deviceLat = parseFloat(req.body.deviceLat);
+      const deviceLng = parseFloat(req.body.deviceLng);
+      if (!isNaN(deviceLat) && !isNaN(deviceLng)) {
+        latitude  = deviceLat;
+        longitude = deviceLng;
+      }
+    }
+
+    // ── Step 3: Location is required — reject if still missing ─
+    if (latitude === undefined || longitude === undefined) {
+      res.status(400).json({
+        error: 'LOCATION_REQUIRED',
+        message: 'Could not determine location. Please allow GPS access or upload a photo with location enabled.',
+      });
+      return;
+    }
+
+    // ── Step 4: Always auto-detect ward — never trust body ────
+    const nearest = await getNearestWard(latitude, longitude);
+
     const result = await issueService.createIssue({
-      ...req.body,
+      title:       req.body.title,
+      description: req.body.description,
+      department:  req.body.department,
+      projectId:   typeof req.params.projectId === 'string' ? req.params.projectId : (req.body.projectId as string | undefined),
       createdById: req.user!.id,
-      projectId: req.params.projectId ?? req.body.projectId ?? undefined,
+      latitude,
+      longitude,
+      wardId: nearest.wardId,   // always auto-detected, never from body
     });
     res.status(201).json(result);
   } catch (err) {
