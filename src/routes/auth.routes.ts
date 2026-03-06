@@ -11,6 +11,7 @@ router.post(
   '/register',
   validateBody([
     { field: 'name', required: true, type: 'string' },
+    { field: 'email', required: true, type: 'string' },
     { field: 'password', required: true, type: 'string' },
   ]),
   authCtrl.register,
