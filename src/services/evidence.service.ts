@@ -3,7 +3,6 @@
  * Handles evidence upload, SHA-256 hashing, EXIF extraction,
  * and geo-proximity validation against the parent issue.
  */
-import path from 'path';
 import { prisma } from '../prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { EvidenceType, Role } from '../generated/prisma/client.js';
@@ -74,9 +73,10 @@ export async function uploadEvidence(
   const exif = await extractExif(file.buffer);
 
   // ── EXIF age validation (hard reject) ─────────────────────────────────────
-  // If the photo carries a timestamp, it must be recent. This prevents
-  // inspectors and citizens from submitting archived or stock photos.
-  if (exif.datetime) {
+  // If the photo carries a timestamp, it must be recent. Skipped for CITIZEN
+  // type because the photo freshness was already checked by tryExtractPhotoLocation
+  // during issue creation — re-checking would double-reject old-EXIF photos.
+  if (exif.datetime && type !== EvidenceType.CITIZEN) {
     const maxAgeMs = config.photoMaxAgeHours * 60 * 60 * 1000;
     const cutoff   = new Date(Date.now() - maxAgeMs);
     if (exif.datetime < cutoff) {

@@ -577,8 +577,8 @@ export async function toggleDuplicate(issueId: string, actorId: string, duplicat
 export async function assignInspector(issueId: string, actorId: string, inspectorId: string) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
   if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
-  if (issue.status !== IssueStatus.ACCEPTED)
-    throw new AppError(400, 'INVALID_STATUS', 'Issue must be ACCEPTED before assigning an inspector');
+  if (issue.status !== IssueStatus.ACCEPTED && issue.status !== IssueStatus.INSPECTING)
+    throw new AppError(400, 'INVALID_STATUS', 'Issue must be ACCEPTED or INSPECTING to assign/reassign an inspector');
 
   const inspector = await prisma.user.findUnique({ where: { id: inspectorId } });
   if (!inspector || inspector.role !== Role.INSPECTOR)
@@ -714,6 +714,16 @@ export async function markWorkDone(issueId: string, actorId: string) {
     `Contractor has marked work done for issue "${issue.title}". Inspector must now submit an AFTER photo.`,
     { issueId },
   );
+
+  // Notify the inspector — they must now upload the AFTER photo to complete the review
+  if (issue.inspectorId) {
+    await notify(
+      issue.inspectorId,
+      'AFTER Photo Required 📸',
+      `Contractor has completed work on "${issue.title}". Please go on-site and submit your AFTER photo.`,
+      { issueId },
+    );
+  }
 
   // Notify the citizen
   await notify(

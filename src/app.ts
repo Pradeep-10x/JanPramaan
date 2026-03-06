@@ -42,7 +42,7 @@ import { requireRole } from './middleware/rbac.middleware';
 import { verifyIssue } from './controllers/verification.controller';
 
 const verificationRouter = Router();
-verificationRouter.post('/:id/verify', authMiddleware, requireRole('INSPECTOR'), verifyIssue);
+verificationRouter.post('/:id/verify', authMiddleware, requireRole('OFFICER', 'ADMIN'), verifyIssue);
 
 // ─── App ──────────────────────────────────────────────────
 const app = express();
