@@ -41,6 +41,38 @@ export async function getMe(req: Request, res: Response, next: NextFunction) {
 }
 
 /**
+ * GET /api/users?adminUnitId=&role=
+ * List all users belonging to an admin unit (ward/city).
+ * Optionally filter by role. ADMIN only.
+ */
+export async function listByUnit(req: Request, res: Response, next: NextFunction) {
+  try {
+    const adminUnitId = req.query.adminUnitId as string | undefined;
+    const role        = req.query.role        as string | undefined;
+
+    const users = await prisma.user.findMany({
+      where: {
+        ...(adminUnitId && { adminUnitId }),
+        ...(role        && { role: role as any }),
+        // never expose CITIZEN passwords etc in this admin list
+        role: role ? (role as any) : { in: ['OFFICER', 'INSPECTOR', 'CONTRACTOR', 'ADMIN'] },
+      },
+      select: {
+        id: true, name: true, email: true, role: true,
+        adminUnitId: true,
+        adminUnit: { select: { id: true, name: true, type: true } },
+        createdAt: true,
+      },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }],
+    });
+
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * PATCH /api/users/me/ward
  * Update the citizen's ward — either by passing a wardId (manual)
  * or deviceLat/deviceLng (auto-detect nearest ward).

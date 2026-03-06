@@ -4,7 +4,6 @@
  * and geo-proximity validation against the parent issue.
  */
 import path from 'path';
-import fs from 'fs';
 import { prisma } from '../prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { EvidenceType, Role } from '../generated/prisma/client.js';
@@ -13,6 +12,7 @@ import { extractExif } from '../utils/exif.util';
 import { haversineDistance } from '../utils/geo.util';
 import { config } from '../config';
 import { IssueStatus } from '../generated/prisma/client.js';
+import { storeFile } from '../utils/storage.util';
 
 
 /**
@@ -88,19 +88,8 @@ export async function uploadEvidence(
     }
   }
 
-  // Save file to disk
-  const ext = path.extname(file.originalname) || '.bin';
-  const filename = `${Date.now()}-${fileHash.slice(0, 8)}${ext}`;
-  const uploadDir = config.uploadDir;
-
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
-
-  const filePath = path.join(uploadDir, filename);
-  fs.writeFileSync(filePath, file.buffer);
-
-  const fileUrl = `/uploads/${filename}`;
+  // Save file (Cloudinary in production, local disk in dev)
+  const fileUrl = await storeFile(file.buffer, file.originalname, 'evidence');
 
   // Create evidence record
   const evidence = await prisma.evidence.create({
