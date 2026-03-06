@@ -132,3 +132,20 @@ export async function notifyWardOfficers(
   });
   await Promise.all(staff.map((u) => notify(u.id, title, body, meta)));
 }
+
+/**
+ * Notify all ADMIN + OFFICER + INSPECTOR users assigned to a ward.
+ * Used for escalation alerts where inspectors also need to be in the loop.
+ */
+export async function notifyWardStaff(
+  wardId: string,
+  title: string,
+  body: string,
+  meta?: { issueId?: string; projectId?: string },
+) {
+  const staff = await prisma.user.findMany({
+    where: { adminUnitId: wardId, role: { in: [Role.ADMIN, Role.OFFICER, Role.INSPECTOR] } },
+    select: { id: true },
+  });
+  await Promise.all(staff.map((u) => notify(u.id, title, body, meta)));
+}

@@ -49,7 +49,7 @@ export async function getMyNotifications(req: Request, res: Response, next: Next
 export async function markRead(req: Request, res: Response, next: NextFunction) {
   try {
     await prisma.userNotification.updateMany({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id: req.params.id as string, userId: req.user!.id },
       data: { read: true },
     });
     res.json({ ok: true });

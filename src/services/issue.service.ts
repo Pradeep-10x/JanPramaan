@@ -8,6 +8,31 @@ import { AppError } from '../middleware/error.middleware';
 import { IssueStatus, ProjectStatus, Role, EvidenceType } from '../generated/prisma/client.js';
 import { config } from '../config';
 import { notify, notifyWardOfficers } from './notification.service.js';
+import { haversineDistance } from '../utils/geo.util.js';
+
+/** Issues within this radius (metres) are flagged as potential duplicates on creation. */
+const DUPLICATE_RADIUS_METRES = 100;
+
+/**
+ * Returns a 0-100 progress score for an issue based on its current status.
+ * Useful for progress bars / dashboards.
+ */
+export function getProgressScore(status: IssueStatus): number {
+  const scores: Record<IssueStatus, number> = {
+    [IssueStatus.OPEN]:                 5,
+    [IssueStatus.ACCEPTED]:            15,
+    [IssueStatus.REJECTED]:             0,
+    [IssueStatus.ASSIGNED]:            25,
+    [IssueStatus.INSPECTING]:          40,
+    [IssueStatus.CONTRACTOR_ASSIGNED]: 55,
+    [IssueStatus.WORK_DONE]:           70,
+    [IssueStatus.UNDER_REVIEW]:        85,
+    [IssueStatus.IN_PROGRESS]:         60,
+    [IssueStatus.COMPLETED]:           95,
+    [IssueStatus.VERIFIED]:           100,
+  };
+  return scores[status] ?? 0;
+}
 
 export interface CreateIssueInput {
   title: string;
@@ -97,7 +122,37 @@ export async function createIssue(input: CreateIssueInput) {
     { issueId: issue.id },
   );
 
-  return issue;
+  // ── Duplicate Detection ──────────────────────────────────────────────────
+  // Find active issues in the same ward and flag any within 100 m as potential duplicates.
+  const wardIssues = await prisma.issue.findMany({
+    where: {
+      wardId: input.wardId,
+      id:     { not: issue.id },
+      status: { notIn: [IssueStatus.REJECTED, IssueStatus.VERIFIED, IssueStatus.COMPLETED] },
+    },
+    select: { id: true, title: true, status: true, latitude: true, longitude: true },
+  });
+
+  const potentialDuplicates = wardIssues
+    .map((i) => ({
+      id:             i.id,
+      title:          i.title,
+      status:         i.status,
+      distanceMetres: Math.round(haversineDistance(input.latitude, input.longitude, i.latitude, i.longitude)),
+    }))
+    .filter((i) => i.distanceMetres <= DUPLICATE_RADIUS_METRES)
+    .sort((a, b) => a.distanceMetres - b.distanceMetres);
+
+  if (potentialDuplicates.length > 0) {
+    await notifyWardOfficers(
+      input.wardId,
+      '⚠️ Possible Duplicate Issue',
+      `New issue "${issue.title}" may be a duplicate of ${potentialDuplicates.length} existing issue(s) nearby (within ${DUPLICATE_RADIUS_METRES}m).`,
+      { issueId: issue.id },
+    );
+  }
+
+  return { ...issue, progressScore: getProgressScore(issue.status), potentialDuplicates };
 }
 
 /**
@@ -158,7 +213,61 @@ export async function acceptIssue(
     { issueId },
   );
 
-  return updated;
+  // ── Auto-assign Inspector ─────────────────────────────────────────────────
+  // Pick the least-busy inspector in the ward (one with no active inspections first,
+  // otherwise fall back to any inspector in the ward).
+  const freeInspector = await prisma.user.findFirst({
+    where: {
+      adminUnitId: issue.wardId,
+      role: Role.INSPECTOR,
+      inspectedIssues: {
+        none: { status: { in: [IssueStatus.INSPECTING, IssueStatus.CONTRACTOR_ASSIGNED, IssueStatus.WORK_DONE] } },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  const inspector = freeInspector ?? await prisma.user.findFirst({
+    where: { adminUnitId: issue.wardId, role: Role.INSPECTOR },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  let autoAssignedInspector: { id: string; name: string } | null = null;
+
+  if (inspector) {
+    await prisma.$transaction([
+      prisma.issue.update({
+        where: { id: issueId },
+        data:  { inspectorId: inspector.id, status: IssueStatus.INSPECTING },
+      }),
+      prisma.auditLog.create({
+        data: {
+          issueId,
+          actorId: null,   // system-triggered
+          action:  'INSPECTOR_AUTO_ASSIGNED',
+          metadata: { inspectorId: inspector.id, inspectorName: inspector.name },
+        },
+      }),
+    ]);
+    await notify(
+      inspector.id,
+      'Inspection Assignment 🔍',
+      `You have been auto-assigned to inspect "${issue.title}". Please upload a BEFORE photo.`,
+      { issueId },
+    );
+    await notify(
+      issue.createdById,
+      'Inspector Assigned 🔍',
+      `An inspector has been auto-assigned to your issue "${issue.title}". Site inspection is underway.`,
+      { issueId },
+    );
+    autoAssignedInspector = { id: inspector.id, name: inspector.name };
+  }
+
+  return {
+    ...updated,
+    progressScore: getProgressScore(autoAssignedInspector ? IssueStatus.INSPECTING : IssueStatus.ACCEPTED),
+    autoAssignedInspector,
+  };
 }
 
 /**
@@ -237,7 +346,7 @@ export async function listIssues(filters: {
   projectId?: string;
   createdById?: string;
 }) {
-  return prisma.issue.findMany({
+  const issues = await prisma.issue.findMany({
     where: {
       ...(filters.wardId      && { wardId:       filters.wardId }),
       ...(filters.status      && { status:       filters.status }),
@@ -253,6 +362,7 @@ export async function listIssues(filters: {
     },
     orderBy: { createdAt: 'desc' },
   });
+  return issues.map((i) => ({ ...i, progressScore: getProgressScore(i.status) }));
 }
 
 /**
@@ -290,7 +400,7 @@ export async function getIssueById(id: string) {
     include: { actor: { select: { id: true, name: true } } },
   });
 
-  return { ...issue, timeline };
+  return { ...issue, timeline, progressScore: getProgressScore(issue.status) };
 }
 
 /**

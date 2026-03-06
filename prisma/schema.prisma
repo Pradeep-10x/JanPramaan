@@ -96,6 +96,7 @@ model Issue {
   duplicateOfId    String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  escalatedAt      DateTime?
   auditLogs        AuditLog[]
   evidence         Evidence[]
   acceptedBy       User?             @relation("IssueAcceptedBy", fields: [acceptedById], references: [id])
@@ -155,11 +156,11 @@ model AuditLog {
   id        String   @id @default(uuid())
   issueId   String?
   projectId String?
-  actorId   String
+  actorId   String?
   action    String
   metadata  Json?
   createdAt DateTime @default(now())
-  actor     User     @relation("AuditActor", fields: [actorId], references: [id])
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id])
   issue     Issue?   @relation(fields: [issueId], references: [id])
   project   Project? @relation(fields: [projectId], references: [id])
 
