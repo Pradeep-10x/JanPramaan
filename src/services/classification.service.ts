@@ -126,7 +126,6 @@ function scoreAll(rawText: string): [string, number][] {
 export function classifyDepartment(
   title: string,
   description?: string,
-  provided?: string,
 ): ClassificationResult {
   const text   = [title, description].filter(Boolean).join(' ');
   const ranked = scoreAll(text);
@@ -139,16 +138,6 @@ export function classifyDepartment(
     topScore >= 2                                 ? 'MEDIUM' : 'LOW';
 
   const scores = Object.fromEntries(ranked);
-
-  // If the caller already provided a department, honour it but still return scores
-  if (provided) {
-    return {
-      department:     provided as Department,
-      confidence:     'HIGH',   // user chose it explicitly
-      scores,
-      autoClassified: false,
-    };
-  }
 
   return {
     department:     topScore > 0 ? (topDept as Department) : Department.MUNICIPAL,

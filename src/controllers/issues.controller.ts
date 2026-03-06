@@ -74,7 +74,6 @@ export async function create(req: Request, res: Response, next: NextFunction) {
     const result = await issueService.createIssue({
       title:       req.body.title,
       description: req.body.description,
-      department:  req.body.department,
       projectId:   typeof req.params.projectId === 'string' ? req.params.projectId : (req.body.projectId as string | undefined),
       createdById: req.user!.id,
       latitude,

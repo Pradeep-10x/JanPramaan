@@ -38,8 +38,6 @@ export function getProgressScore(status: IssueStatus): number {
 export interface CreateIssueInput {
   title: string;
   description?: string;
-  /** Optional — if omitted the department is auto-classified from title + description. */
-  department?: string;
   latitude: number;
   longitude: number;
   wardId: string;
@@ -65,11 +63,9 @@ export interface ConvertInput {
  */
 export async function createIssue(input: CreateIssueInput) {
   // ── Auto-classify department ──────────────────────────────────────────────
-  const classification = classifyDepartment(
-    input.title,
-    input.description,
-    input.department,          // undefined → auto-classify; provided → honour as-is
-  );
+  // Department is always derived from the issue title + description.
+  // Falls back to MUNICIPAL if no keywords match.
+  const classification = classifyDepartment(input.title, input.description);
   const resolvedDepartment = classification.department;
 
   // Validate ward exists and is type WARD
