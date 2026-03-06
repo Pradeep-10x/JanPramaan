@@ -410,7 +410,15 @@ export async function getIssueById(id: string) {
     include: { actor: { select: { id: true, name: true } } },
   });
 
-  return { ...issue, timeline, progressScore: getProgressScore(issue.status) };
+  // ── Structured photo summary ─────────────────────────────────────────────
+  // Group evidence by type so consumers don't need to filter themselves.
+  const photos = {
+    citizen: issue.evidence.find((e) => e.type === 'CITIZEN') ?? null,
+    before:  issue.evidence.find((e) => e.type === 'BEFORE')  ?? null,
+    after:   issue.evidence.find((e) => e.type === 'AFTER')   ?? null,
+  };
+
+  return { ...issue, timeline, progressScore: getProgressScore(issue.status), photos };
 }
 
 /**

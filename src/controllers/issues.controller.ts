@@ -4,6 +4,8 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import * as issueService from '../services/issue.service';
+import * as evidenceService from '../services/evidence.service';
+import { EvidenceType } from '../generated/prisma/client.js';
 import { prisma } from '../prisma/client';
 import { tryExtractPhotoLocation } from '../services/exif.service';
 import { getNearestWard } from '../services/adminUnit.service';
@@ -79,7 +81,32 @@ export async function create(req: Request, res: Response, next: NextFunction) {
       longitude,
       wardId: nearest.wardId,   // always auto-detected, never from body
     });
-    res.status(201).json({ ...result, ...(photoDeviceLocationWarning ? { photoDeviceLocationWarning } : {}) });
+
+    // ── Step 6: Persist citizen’s photo as CITIZEN evidence ────────────
+    // The photo was already used for GPS; now store it permanently.
+    let citizenEvidence: Awaited<ReturnType<typeof evidenceService.uploadEvidence>> | null = null;
+    if (req.file) {
+      try {
+        citizenEvidence = await evidenceService.uploadEvidence(
+          result.id,
+          req.user!.id,
+          req.user!.role,
+          EvidenceType.CITIZEN,
+          req.file,
+          hasDeviceGps ? deviceLat : undefined,
+          hasDeviceGps ? deviceLng : undefined,
+        );
+      } catch {
+        // Photo storage failure must not block issue creation; log only
+        console.error('[create issue] Failed to store citizen photo for issue', result.id);
+      }
+    }
+
+    res.status(201).json({
+      ...result,
+      citizenPhoto: citizenEvidence?.evidence ?? null,
+      ...(photoDeviceLocationWarning ? { photoDeviceLocationWarning } : {}),
+    });
   } catch (err) {
     next(err);
   }

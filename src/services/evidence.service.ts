@@ -59,7 +59,13 @@ export async function uploadEvidence(
       throw new AppError(400, 'INVALID_STATUS', 'Issue must be in WORK_DONE status for an AFTER photo — contractor must mark work done first');
   }
 
- 
+  // CITIZEN photo: uploader must be the citizen who created the issue, issue must be OPEN
+  if (type === EvidenceType.CITIZEN) {
+    if (issue.createdById !== uploaderId)
+      throw new AppError(403, 'FORBIDDEN', 'Only the citizen who reported this issue can attach a citizen photo');
+    if (issue.status !== IssueStatus.OPEN)
+      throw new AppError(400, 'INVALID_STATUS', 'Citizen photos can only be attached to OPEN issues');
+  }
 
   // Compute file hash
   const fileHash = sha256Buffer(file.buffer);

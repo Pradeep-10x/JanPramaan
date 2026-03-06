@@ -243,8 +243,9 @@ enum IssueStatus {
 }
 
 enum EvidenceType {
-  BEFORE
-  AFTER
+  CITIZEN  // photo submitted by citizen when filing the issue
+  BEFORE   // BEFORE photo uploaded by inspector (pre-repair)
+  AFTER    // AFTER  photo uploaded by inspector (post-repair)
 }
 
 enum VerificationVerdict {
