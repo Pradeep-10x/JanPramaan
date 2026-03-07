@@ -7,10 +7,22 @@ import { prisma } from '../prisma/client';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
+
+    const adminUnitId = req.user!.adminUnitId;
+    if (!adminUnitId) {
+      res.status(400).json({
+        error: 'NO_ADMIN_UNIT',
+        message: 'Your account has no administrative unit assigned. Cannot create a project.',
+      });
+      return;
+    }
+    
     const result = await projectService.createProject(
       {
-        ...req.body,
-        adminUnitId: req.body.adminUnitId ?? req.user!.adminUnitId,
+          title: req.body.title,
+        description: req.body.description,
+        budget: req.body.budget,
+        adminUnitId,
       },
       req.user!.id,
     );
