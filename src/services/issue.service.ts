@@ -397,6 +397,8 @@ export async function getIssueById(id: string) {
       assignedTo: { select: { id: true, name: true } },
       acceptedBy: { select: { id: true, name: true } },
       rejectedBy: { select: { id: true, name: true } },
+      inspector:  { select: { id: true, name: true } },
+      contractor: { select: { id: true, name: true } },
       evidence: {
         orderBy: { uploadedAt: 'asc' },
         include: { uploadedBy: { select: { id: true, name: true } } },
