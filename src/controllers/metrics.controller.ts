@@ -15,6 +15,16 @@ export async function getMetrics(req: Request, res: Response, next: NextFunction
     const verifiedIssues = await prisma.issue.count({ 
       where: { ...baseWhere, status: IssueStatus.VERIFIED } 
     });
+    
+    // Ongoing issues: Accepted, Assigned, In_Progress, Work_Done 
+    const ongoingIssues = await prisma.issue.count({
+      where: {
+         ...baseWhere,
+         status: {
+           notIn: [IssueStatus.OPEN, IssueStatus.VERIFIED, IssueStatus.REJECTED]
+         }
+      }
+    });
 
     // Average resolution time: from ASSIGNED → VERIFIED
     const verifiedWithAssignment = await prisma.issue.findMany({
@@ -54,6 +64,7 @@ export async function getMetrics(req: Request, res: Response, next: NextFunction
 
     res.json({
       total_issues: totalIssues,
+      ongoing_issues: ongoingIssues,
       verified_issues: verifiedIssues,
       verified_percent: totalIssues > 0 ? Math.round((verifiedIssues / totalIssues) * 10000) / 100 : 0,
       avg_resolution_time_hours: avgResolutionTimeHours,
@@ -70,14 +81,29 @@ export async function getMetrics(req: Request, res: Response, next: NextFunction
   }
 }
 
-export async function getAdvancedMetrics(_req: Request, res: Response, next: NextFunction) {
+export async function getAdvancedMetrics(req: Request, res: Response, next: NextFunction) {
   try {
-    const totalIssues = await prisma.issue.count();
-    const verifiedIssues = await prisma.issue.count({ where: { status: IssueStatus.VERIFIED } });
+    const rawWardId = req.query.wardId as string | undefined;
+    const baseWhere = rawWardId ? { wardId: rawWardId } : {};
+
+    const totalIssues = await prisma.issue.count({ where: baseWhere });
+    const verifiedIssues = await prisma.issue.count({ 
+      where: { ...baseWhere, status: IssueStatus.VERIFIED } 
+    });
+
+    // Ongoing issues: Accepted, Assigned, In_Progress, Work_Done 
+    const ongoingIssues = await prisma.issue.count({
+      where: {
+         ...baseWhere,
+         status: {
+           notIn: [IssueStatus.OPEN, IssueStatus.VERIFIED, IssueStatus.REJECTED]
+         }
+      }
+    });
 
     // Average resolution time
     const verifiedWithAssignment = await prisma.issue.findMany({
-      where: { status: IssueStatus.VERIFIED },
+      where: { ...baseWhere, status: IssueStatus.VERIFIED },
       select: { createdAt: true, updatedAt: true, slaDeadline: true },
     });
 
@@ -98,12 +124,12 @@ export async function getAdvancedMetrics(_req: Request, res: Response, next: Nex
 
     // Proof coverage
     const issuesWithBefore = await prisma.evidence.findMany({
-      where: { type: 'BEFORE' },
+      where: { type: 'BEFORE', issue: baseWhere },
       select: { issueId: true },
       distinct: ['issueId'],
     });
     const issuesWithAfter = await prisma.evidence.findMany({
-      where: { type: 'AFTER' },
+      where: { type: 'AFTER', issue: baseWhere },
       select: { issueId: true },
       distinct: ['issueId'],
     });
@@ -115,7 +141,8 @@ export async function getAdvancedMetrics(_req: Request, res: Response, next: Nex
     const wardGroups = await prisma.issue.groupBy({
       by: ['wardId'],
       _count: { _all: true },
-      where: { status: { not: IssueStatus.REJECTED } }
+      // Important to filter by baseWhere here or an officer just gets 1 ward in the chart
+      where: { ...baseWhere, status: { not: IssueStatus.REJECTED } }
     });
     const wards = await prisma.adminUnit.findMany({ where: { id: { in: wardGroups.map(w => w.wardId) } }, select: { id: true, name: true }});
     const wardMap = new Map(wards.map(w => [w.id, w.name]));
@@ -129,6 +156,7 @@ export async function getAdvancedMetrics(_req: Request, res: Response, next: Nex
     const deptGroups = await prisma.issue.groupBy({
       by: ['department'],
       _count: { _all: true },
+      where: baseWhere
     });
     const departmentBreakdown = deptGroups.map(g => ({
       department: g.department,
@@ -140,7 +168,7 @@ export async function getAdvancedMetrics(_req: Request, res: Response, next: Nex
     const officerGroups = await prisma.issue.groupBy({
       by: ['assignedToId'],
       _count: { _all: true },
-      where: { status: IssueStatus.VERIFIED, assignedToId: { not: null } },
+      where: { ...baseWhere, status: IssueStatus.VERIFIED, assignedToId: { not: null } },
       orderBy: { _count: { assignedToId: 'desc' } },
       take: 10
     });
@@ -169,7 +197,7 @@ export async function getAdvancedMetrics(_req: Request, res: Response, next: Nex
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
     const recentIssues = await prisma.issue.findMany({
-      where: { createdAt: { gte: thirtyDaysAgo } },
+      where: { ...baseWhere, createdAt: { gte: thirtyDaysAgo } },
       select: { createdAt: true, status: true }
     });
 
@@ -193,6 +221,7 @@ export async function getAdvancedMetrics(_req: Request, res: Response, next: Nex
 
     res.json({
       total_issues: totalIssues,
+      ongoing_issues: ongoingIssues,
       verified_issues: verifiedIssues,
       verified_percent: totalIssues > 0 ? Math.round((verifiedIssues / totalIssues) * 10000) / 100 : 0,
       avg_resolution_time_hours: avgResolutionTimeHours,
