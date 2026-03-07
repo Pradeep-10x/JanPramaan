@@ -6,6 +6,6 @@ import * as metricsCtrl from '../controllers/metrics.controller';
 
 const router = Router();
 
-router.get('/', metricsCtrl.getMetrics);
+router.get('/', metricsCtrl.getAdvancedMetrics);
 
 export default router;

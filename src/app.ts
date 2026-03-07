@@ -25,6 +25,7 @@ import proofRoutes from './routes/proof.routes';
 import residentsRoutes from './routes/residents.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import metricsRoutes from './routes/metrics.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 import otpRoutes from "./routes/otp.js";
 
 // Verification route (inline)
@@ -78,6 +79,7 @@ app.use('/api/issues', verificationRouter); // /api/issues/:id/verify
 app.use('/api/residents', residentsRoutes);
 app.use('/api/notify', notificationsRoutes);
 app.use('/api/metrics', metricsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // ─── Global error handler ─────────────────────────────────
 app.use(errorMiddleware);
