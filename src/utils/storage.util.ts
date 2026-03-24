@@ -32,19 +32,21 @@ export async function storeFile(
   folder: string = 'evidence',
 ): Promise<string> {
   if (isCloudinaryConfigured) {
-    // Upload to Cloudinary via upload_stream
+    // Upload to Cloudinary via upload_stream with long-term retention
     return new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
           folder,
-          resource_type: 'auto',
+          resource_type: 'image', // explicitly use image rather than auto
           use_filename: false,
           unique_filename: true,
+          access_mode: 'public', // ensure the image doesn't expire from private token signatures
+          type: 'upload'
         },
         (error, result) => {
           if (error || !result) return reject(error ?? new Error('Cloudinary upload failed'));
           resolve(result.secure_url);
-        },
+        }
       );
       stream.end(buffer);
     });

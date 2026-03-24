@@ -377,6 +377,8 @@ export async function listIssues(filters: {
       ward: { select: { id: true, name: true } },
       createdBy: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true } },
+      inspector:  { select: { id: true, name: true } },
+      contractor: { select: { id: true, name: true } },
       _count: { select: { evidence: true } },
     },
     orderBy: { createdAt: 'desc' },
