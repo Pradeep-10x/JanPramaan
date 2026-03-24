@@ -6,9 +6,9 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'WitnessLedger API',
+      title: 'JanPramaan API',
       version: '1.0.0',
-      description: 'Detailed API documentation for WitnessLedger Backend',
+      description: 'Detailed API documentation for JanPramaan Backend',
     },
     servers: [
       {
