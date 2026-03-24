@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Merkle service
+ * JanPramaan — Merkle service
  * Higher-level service wrapping the merkle utility for batch proof generation.
  */
 import { prisma } from '../prisma/client';

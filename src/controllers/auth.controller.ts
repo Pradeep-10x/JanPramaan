@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Auth controller
+ * JanPramaan — Auth controller
  */
 import { Request, Response, NextFunction } from 'express';
 import * as authService from '../services/auth.service';

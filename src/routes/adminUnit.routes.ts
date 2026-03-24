@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — AdminUnit routes
+ * JanPramaan — AdminUnit routes
  */
 import { Router } from 'express';
 import * as adminUnitCtrl from '../controllers/adminUnit.controller';

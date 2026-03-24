@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — AdminUnit service
+ * JanPramaan — AdminUnit service
  * CRUD operations for the administrative hierarchy (Global → City → Ward).
  */
 import { prisma } from '../prisma/client';

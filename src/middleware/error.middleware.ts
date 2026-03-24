@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Global error handling middleware
+ * JanPramaan — Global error handling middleware
  * Catches unhandled errors and returns structured JSON responses.
  */
 import { Request, Response, NextFunction } from 'express';

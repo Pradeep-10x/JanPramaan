@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Dashboard Controller
+ * JanPramaan — Dashboard Controller
  * Provides custom views like the officer command center.
  */
 import { Request, Response, NextFunction } from 'express';

@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Perceptual Hash Utility
+ * JanPramaan — Perceptual Hash Utility
  *
  * Implements dHash (Difference Hash), a fast perceptual hashing algorithm
  * that produces a 64-bit fingerprint of an image.

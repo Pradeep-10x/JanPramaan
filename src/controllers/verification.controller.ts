@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Verification controller
+ * JanPramaan — Verification controller
  * Handles inspector verification of issue resolution.
  */
 import { Request, Response, NextFunction } from 'express';

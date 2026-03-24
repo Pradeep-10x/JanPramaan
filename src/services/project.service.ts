@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Project service
+ * JanPramaan — Project service
  * Handles project creation, listing, approval.
  */
 import { prisma } from '../prisma/client';

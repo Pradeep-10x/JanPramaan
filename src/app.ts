@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Express application setup
+ * JanPramaan — Express application setup
  * Mounts all routes, middleware, and serves static uploads.
  */
 import express from 'express';

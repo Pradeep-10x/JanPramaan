@@ -1,7 +1,7 @@
 {
-  "name": "witnessledger-backend",
+  "name": "janpramaan-backend",
   "version": "1.0.0",
-  "description": "WitnessLedger — ward-scoped public-works transparency engine backend",
+  "description": "JanPramaan — ward-scoped public-works transparency engine backend",
   "type": "module",
   "main": "dist/server.js",
   "scripts": {

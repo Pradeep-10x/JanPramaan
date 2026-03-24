@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — HTTP server entry point
+ * JanPramaan — HTTP server entry point
  */
 import app, { logger } from './app';
 import { config } from './config';
@@ -27,7 +27,7 @@ setTimeout(async () => {
 }, 30_000);
 
 app.listen(PORT, () => {
-  logger.info(`🏗️  WitnessLedger API listening on http://localhost:${PORT}`);
+  logger.info(`🏗️  JanPramaan API listening on http://localhost:${PORT}`);
   logger.info(`📋 Health check: http://localhost:${PORT}/health`);
   logger.info(`⏰  Escalation job scheduled every ${ESCALATION_INTERVAL_MS / 60_000} min (first run in 30 s)`);
 });

@@ -1,5 +1,5 @@
 /*
- * Ghaziabad Municipal Corporation – WitnessLedger Demo Seed
+ * Ghaziabad Municipal Corporation – JanPramaan Demo Seed
  *
  * 10 real Ghaziabad wards (5 GMC zones) · 1 city admin + 10 ward admins + 10 officers
  * · 4 inspectors · 3 contractors · 6 citizens · 12 issues · 3 projects · 30 residents
@@ -118,7 +118,7 @@ async function hashPw(pw: string) {
 // MAIN
 // ─────────────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log('\n🏙️  WitnessLedger – Ghaziabad Municipal Corporation demo seed\n');
+  console.log('\n🏙️  JanPramaan – Ghaziabad Municipal Corporation demo seed\n');
 
   // ── 1. Admin Units ──────────────────────────────────────────────────────────
   const india = await prisma.adminUnit.create({
@@ -639,7 +639,7 @@ async function main() {
   ];
 
   console.log('\n  ╔══════════════════════════════════════════════════════════════════════╗');
-  console.log('  ║               WitnessLedger GMC – Demo Credentials                  ║');
+  console.log('  ║               JanPramaan GMC – Demo Credentials                  ║');
   console.log('  ╠══════════════╦══════════════════════════════════════╦═══════════════╣');
   console.log('  ║ Role         ║ Email                                ║ Password      ║');
   console.log('  ╠══════════════╬══════════════════════════════════════╬═══════════════╣');

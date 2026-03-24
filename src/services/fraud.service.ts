@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Photo Fraud Detection Service
+ * JanPramaan — Photo Fraud Detection Service
  *
  * Uses perceptual hashing (dHash) to detect two types of fraud:
  *

@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Centralised configuration
+ * JanPramaan — Centralised configuration
  * All environment variables are read and validated here.
  */
 import dotenv from 'dotenv';

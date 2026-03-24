@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Role-Based Access Control middleware
+ * JanPramaan — Role-Based Access Control middleware
  * Restricts route access to specified roles.
  */
 import { Request, Response, NextFunction } from 'express';

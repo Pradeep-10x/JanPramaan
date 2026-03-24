@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — User service
+ * JanPramaan — User service
  * Admin-only user creation (officers, inspectors, admins, contractors).
  */
 import bcrypt from 'bcrypt';

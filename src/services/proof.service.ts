@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Proof service
+ * JanPramaan — Proof service
  * Builds a tamper-evident proof bundle for an issue:
  * before/after hashes, merkle root, and verification info.
  */

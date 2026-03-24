@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Deterministic Merkle tree utility
+ * JanPramaan — Deterministic Merkle tree utility
  *
  * Builds a binary Merkle tree from an array of hex-encoded leaf hashes.
  * If the leaf count is odd, the last leaf is duplicated (standard padding).

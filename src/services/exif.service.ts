@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — EXIF service
+ * JanPramaan — EXIF service
  * Extracts GPS + timestamp from photo and validates freshness.
  */
 import { extractExif } from '../utils/exif.util';

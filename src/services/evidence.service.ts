@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Evidence service
+ * JanPramaan — Evidence service
  * Handles evidence upload, SHA-256 hashing, EXIF extraction,
  * and geo-proximity validation against the parent issue.
  */

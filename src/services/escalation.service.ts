@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Escalation service
+ * JanPramaan — Escalation service
  *
  * Runs as a background job. Scans for stalled issues and notifies
  * admins + relevant parties so nothing falls through the cracks.

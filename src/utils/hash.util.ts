@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — SHA-256 hashing utility
+ * JanPramaan — SHA-256 hashing utility
  * Computes hex-encoded SHA-256 digest from a file buffer.
  */
 import crypto from 'crypto';

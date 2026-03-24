@@ -1,4 +1,4 @@
-import { api } from './witnessledger-frontend/src/lib/api'; // Or use axios/fetch
+import { api } from './janpramaan-frontend/src/lib/api'; // Or use axios/fetch
 // Script to test OTP flow directly against local server
 async function test() {
   const email = `test-${Date.now()}@example.com`;

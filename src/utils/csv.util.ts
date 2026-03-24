@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — CSV parsing utility
+ * JanPramaan — CSV parsing utility
  * Safely parses a CSV buffer into an array of records.
  * Uses the `csv-parse` library in synchronous mode for simplicity.
  */

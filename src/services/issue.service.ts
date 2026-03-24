@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Issue service
+ * JanPramaan — Issue service
  * Core issue lifecycle: creation with auto-assignment, listing, assignment,
  * conversion to project, and duplicate toggling.
  */

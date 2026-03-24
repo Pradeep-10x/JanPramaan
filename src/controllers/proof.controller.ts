@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Proof controller
+ * JanPramaan — Proof controller
  */
 import { Request, Response, NextFunction } from 'express';
 import * as proofService from '../services/proof.service';

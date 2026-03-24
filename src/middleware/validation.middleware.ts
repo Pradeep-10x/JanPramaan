@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Request validation middleware
+ * JanPramaan — Request validation middleware
  * Lightweight schema validation using a simple declarative approach.
  * For production, swap with Zod or Joi.
  */

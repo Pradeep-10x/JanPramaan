@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Notification service
+ * JanPramaan — Notification service
  * Finds nearby residents for an issue and creates notification log entries.
  * Optionally sends via Twilio if configured.
  */

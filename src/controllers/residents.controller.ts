@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Residents controller
+ * JanPramaan — Residents controller
  */
 import { Request, Response, NextFunction } from 'express';
 import * as notificationService from '../services/notification.service';

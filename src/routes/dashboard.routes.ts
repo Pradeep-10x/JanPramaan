@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Dashboard routes
+ * JanPramaan — Dashboard routes
  */
 import { Router } from 'express';
 import * as dashboardCtrl from '../controllers/dashboard.controller';

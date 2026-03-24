@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Auth routes
+ * JanPramaan — Auth routes
  */
 import { Router } from 'express';
 import * as authCtrl from '../controllers/auth.controller';

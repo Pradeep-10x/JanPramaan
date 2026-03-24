@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Users controller
+ * JanPramaan — Users controller
  */
 import { Request, Response, NextFunction } from 'express';
 import * as userService from '../services/user.service';

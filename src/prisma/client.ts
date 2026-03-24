@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Prisma client singleton
+ * JanPramaan — Prisma client singleton
  * Re-uses a single PrismaClient instance across the application.
  * Prisma 7 uses driver adapters for direct database connections.
  */

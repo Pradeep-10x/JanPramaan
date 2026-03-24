@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — JWT authentication middleware
+ * JanPramaan — JWT authentication middleware
  * Validates Bearer tokens and attaches the decoded user to req.user.
  */
 import { Request, Response, NextFunction } from 'express';

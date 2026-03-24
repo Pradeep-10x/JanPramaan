@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Cloud storage util
+ * JanPramaan — Cloud storage util
  * Uploads a file buffer to Cloudinary and returns the secure URL.
  * Falls back to local disk if CLOUDINARY_URL is not configured (dev only).
  */

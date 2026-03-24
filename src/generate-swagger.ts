@@ -4,8 +4,8 @@ config();
 
 const doc = {
   info: {
-    title: 'WitnessLedger API',
-    description: 'WitnessLedger API documentation',
+    title: 'JanPramaan API',
+    description: 'JanPramaan API documentation',
     version: '1.0.0'
   },
   servers: [

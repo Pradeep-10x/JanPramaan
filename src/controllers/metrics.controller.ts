@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Metrics controller
+ * JanPramaan — Metrics controller
  * Computes on-demand KPIs from the database.
  */
 import { Request, Response, NextFunction } from 'express';

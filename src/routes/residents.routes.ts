@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Residents routes
+ * JanPramaan — Residents routes
  */
 import { Router } from 'express';
 import multer from 'multer';

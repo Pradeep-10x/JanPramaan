@@ -1,4 +1,4 @@
-# WitnessLedger Backend
+# JanPramaan Backend
 
 **Ward-scoped public-works transparency engine** — a Node.js + Express + Prisma backend for civic issue tracking with tamper-evident proof, geotagged evidence, SLA enforcement, and inspector verification.
 
@@ -29,7 +29,7 @@
 ### 2. Clone & Install
 
 ```bash
-cd witnessledger-backend
+cd janpramaan-backend
 npm install
 ```
 
@@ -42,16 +42,16 @@ cp .env.example .env
 Edit `.env` and set your `DATABASE_URL`:
 
 ```
-DATABASE_URL=postgresql://user:pass@localhost:5432/witnessledger_dev
+DATABASE_URL=postgresql://user:pass@localhost:5432/janpramaan_dev
 JWT_SECRET=change_me_in_production
 ```
 
 ### 4. Create Database
 
 ```bash
-createdb witnessledger_dev
+createdb janpramaan_dev
 # Or via psql:
-# psql -c "CREATE DATABASE witnessledger_dev;"
+# psql -c "CREATE DATABASE janpramaan_dev;"
 ```
 
 ### 5. Run Migrations

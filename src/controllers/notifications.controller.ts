@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Notifications controller
+ * JanPramaan — Notifications controller
  */
 import { Request, Response, NextFunction } from 'express';
 import * as notificationService from '../services/notification.service';

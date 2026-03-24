@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — EXIF metadata extraction
+ * JanPramaan — EXIF metadata extraction
  * Uses the `exifr` library to extract GPS coordinates and datetime from images.
  * Gracefully returns null fields when EXIF data is absent or unparseable.
  */

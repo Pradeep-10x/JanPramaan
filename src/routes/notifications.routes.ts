@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Notifications routes
+ * JanPramaan — Notifications routes
  */
 import { Router } from 'express';
 import * as notificationsCtrl from '../controllers/notifications.controller';

@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Auto Department Classification Service
+ * JanPramaan — Auto Department Classification Service
  *
  * Rule-based keyword NLP classifier that maps complaint text to one
  * of the six Department enum values without requiring any paid API.

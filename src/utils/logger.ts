@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Centralised Winston logger
+ * JanPramaan — Centralised Winston logger
  * Imported by app.ts (re-exported) and any module that needs structured logging.
  */
 import winston from 'winston';

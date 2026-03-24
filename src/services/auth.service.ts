@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Auth service
+ * JanPramaan — Auth service
  * Handles user registration (CITIZEN) and login with JWT generation.
  */
 import bcrypt from 'bcrypt';

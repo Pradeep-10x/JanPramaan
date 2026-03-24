@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Projects routes
+ * JanPramaan — Projects routes
  */
 import { Router } from 'express';
 import * as projectsCtrl from '../controllers/projects.controller';

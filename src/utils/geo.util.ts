@@ -1,5 +1,5 @@
 /**
- * WitnessLedger — Geospatial utilities
+ * JanPramaan — Geospatial utilities
  * Haversine distance calculation between two WGS-84 coordinate pairs.
  */
 
