@@ -73,7 +73,7 @@ export async function registerUser(input: RegisterInput) {
       passwordHash,
       role: Role.CITIZEN,
       adminUnitId: resolvedWardId ?? null,
-      isEmailVerified: false,
+      isEmailVerified: true,
     },
     select: { id: true, name: true, email: true, role: true, adminUnitId: true, createdAt: true },
   });
@@ -82,7 +82,7 @@ export async function registerUser(input: RegisterInput) {
   await prisma.auditLog.create({
     data: {
       actorId: user.id,
-      action: 'USER_REGISTERED_UNVERIFIED',
+      action: 'USER_REGISTERED',
       metadata: { email: user.email, wardId: resolvedWardId ?? null },
     },
   });
