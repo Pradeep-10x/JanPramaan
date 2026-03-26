@@ -11,7 +11,7 @@ export async function createUser(req: Request, res: Response, next: NextFunction
   try {
     const result = await userService.createUser({
       ...req.body,
-      adminUnitId: req.user!.adminUnitId || req.user!.adminUnitId,
+      adminUnitId: req.body.adminUnitId || req.user!.adminUnitId,
     }, req.user!.id);
     res.status(201).json(result);
   } catch (err) {
@@ -55,9 +55,24 @@ export async function listByUnit(req: Request, res: Response, next: NextFunction
       ? (role as any)
       : { in: ALLOWED_ROLES };
 
+    let unitCondition: any = adminUnitId ? { adminUnitId } : {};
+
+    // For contractors, fetch all contractors in the entire city (parent unit + all child wards)
+    if (role === 'CONTRACTOR' && adminUnitId) {
+      const unit = await prisma.adminUnit.findUnique({ where: { id: adminUnitId } });
+      if (unit && unit.type === 'WARD' && unit.parentId) {
+        unitCondition = {
+          OR: [
+            { adminUnitId: unit.parentId }, // City-level contractors
+            { adminUnit: { parentId: unit.parentId } }, // Ward-level contractors in same city
+          ],
+        };
+      }
+    }
+
     const users = await prisma.user.findMany({
       where: {
-        ...(adminUnitId && { adminUnitId }),
+        ...unitCondition,
         role: roleFilter,
       },
       select: {

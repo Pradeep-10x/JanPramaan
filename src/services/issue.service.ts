@@ -699,11 +699,21 @@ export async function hireContractor(
   if (issue.evidence.length === 0)
     throw new AppError(400, 'MISSING_BEFORE_PHOTO', 'Inspector must upload a BEFORE photo before a contractor is hired');
 
-  const contractor = await prisma.user.findUnique({ where: { id: contractorId } });
+  const contractor = await prisma.user.findUnique({ 
+    where: { id: contractorId },
+    include: { adminUnit: true }
+  });
   if (!contractor || contractor.role !== Role.CONTRACTOR)
     throw new AppError(400, 'INVALID_USER', 'User must have CONTRACTOR role');
-  if (contractor.adminUnitId !== issue.wardId)
-    throw new AppError(403, 'WRONG_WARD', 'Contractor does not belong to the same ward as the issue');
+
+  const issueWard = await prisma.adminUnit.findUnique({ where: { id: issue.wardId } });
+  const isSameWard = contractor.adminUnitId === issue.wardId;
+  const isCityLevel = contractor.adminUnitId === issueWard?.parentId;
+  const isSameCityWard = contractor.adminUnit?.parentId === issueWard?.parentId;
+
+  if (!isSameWard && !isCityLevel && !isSameCityWard) {
+    throw new AppError(403, 'WRONG_WARD', 'Contractor must belong to the same city as the issue');
+  }
 
   // Parse optional deadline
   const now = new Date();
