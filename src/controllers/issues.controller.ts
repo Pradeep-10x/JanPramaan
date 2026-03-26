@@ -4,6 +4,7 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import * as issueService from '../services/issue.service';
+import { classifyDepartment } from '../services/classification.service';
 import * as evidenceService from '../services/evidence.service';
 import { EvidenceType, IssueStatus } from '../generated/prisma/client.js';
 import { prisma } from '../prisma/client';
@@ -75,6 +76,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
     const result = await issueService.createIssue({
       title:       req.body.title,
       description: req.body.description,
+      department:  req.body.department || undefined,
       projectId:   typeof req.params.projectId === 'string' ? req.params.projectId : (req.body.projectId as string | undefined),
       createdById: req.user!.id,
       latitude,
@@ -346,6 +348,26 @@ export async function getTimeline(req: Request, res: Response, next: NextFunctio
       include: { actor: { select: { id: true, name: true } } },
     });
     res.json(logs);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/issues/classify?title=...&description=...
+ * Stateless preview — returns the auto-detected department so the citizen
+ * can confirm or override before submitting.
+ */
+export async function classify(req: Request, res: Response, next: NextFunction) {
+  try {
+    const title = (req.query.title as string) || '';
+    const description = (req.query.description as string) || undefined;
+    if (!title.trim()) {
+      res.status(400).json({ error: 'TITLE_REQUIRED', message: 'Provide a title query parameter' });
+      return;
+    }
+    const result = classifyDepartment(title, description);
+    res.json(result);
   } catch (err) {
     next(err);
   }

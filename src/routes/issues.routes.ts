@@ -54,6 +54,28 @@ router.get('/', issuesCtrl.list);
 
 /**
  * @openapi
+ * /api/issues/classify:
+ *   get:
+ *     summary: Preview auto-classified department before submission
+ *     tags: [Issues]
+ *     parameters:
+ *       - in: query
+ *         name: title
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: description
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Classification result with department, confidence, and scores
+ */
+router.get('/classify', issuesCtrl.classify);
+
+/**
+ * @openapi
  * /api/issues/mine:
  *   get:
  *     summary: List citizen's own issues

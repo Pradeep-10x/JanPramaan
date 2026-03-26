@@ -38,6 +38,7 @@ export function getProgressScore(status: IssueStatus): number {
 export interface CreateIssueInput {
   title: string;
   description?: string;
+  department?: string;
   latitude: number;
   longitude: number;
   wardId: string;
@@ -63,10 +64,9 @@ export interface ConvertInput {
  */
 export async function createIssue(input: CreateIssueInput) {
   // ── Auto-classify department ──────────────────────────────────────────────
-  // Department is always derived from the issue title + description.
-  // Falls back to MUNICIPAL if no keywords match.
+  // Citizen can override via the form; otherwise NLP auto-classifies.
   const classification = classifyDepartment(input.title, input.description);
-  const resolvedDepartment = classification.department;
+  const resolvedDepartment = input.department || classification.department;
 
   // Validate ward exists and is type WARD
   const ward = await prisma.adminUnit.findUnique({ where: { id: input.wardId } });
