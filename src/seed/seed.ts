@@ -328,7 +328,7 @@ async function main() {
       createdById: citizenAmit,
       inspectorId: inspNorth,
       contractorId: contMisc,
-      status: IssueStatus.WORK_DONE,
+      status: IssueStatus.INSPECTING_WORK,
       slaDeadline: daysFromNow(-1),
     },
   });

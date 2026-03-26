@@ -106,7 +106,7 @@ export async function runEscalationCheck(): Promise<{ escalated: number }> {
 
   const staleWorkDone = await prisma.issue.findMany({
     where: {
-      status:      IssueStatus.WORK_DONE,
+      status:      IssueStatus.INSPECTING_WORK,
       updatedAt:   { lt: workDoneCutoff },
       escalatedAt: null,
     },

@@ -234,8 +234,8 @@ enum IssueStatus {
   REJECTED
   ASSIGNED
   INSPECTING          // inspector assigned, awaiting before photo
-  CONTRACTOR_ASSIGNED // contractor hired, work in progress
-  WORK_DONE           // contractor marked work complete
+  CONTRACTOR_ASSIGNED 
+  INSPECTING_WORK     // contractor marked work complete
   UNDER_REVIEW        // inspector submitted after photo, awaiting officer verification
   IN_PROGRESS
   COMPLETED

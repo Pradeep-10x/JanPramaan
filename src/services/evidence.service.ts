@@ -48,24 +48,24 @@ export async function uploadEvidence(
       throw new AppError(400, 'INVALID_STATUS', 'Issue must be in INSPECTING status for a BEFORE photo');
   }
 
-  // AFTER photo: only the assigned INSPECTOR, issue must be WORK_DONE
+  // AFTER photo: only the assigned INSPECTOR, issue must be INSPECTING_WORK
   if (type === EvidenceType.AFTER) {
     if (uploaderRole !== Role.INSPECTOR)
       throw new AppError(403, 'FORBIDDEN', 'Only an INSPECTOR can upload AFTER evidence');
     if (issue.inspectorId !== uploaderId)
       throw new AppError(403, 'FORBIDDEN', 'Only the assigned inspector for this issue can upload AFTER evidence');
-    if (issue.status !== IssueStatus.WORK_DONE)
-      throw new AppError(400, 'INVALID_STATUS', 'Issue must be in WORK_DONE status for an AFTER photo — contractor must mark work done first');
+    if (issue.status !== IssueStatus.INSPECTING_WORK)
+      throw new AppError(400, 'INVALID_STATUS', 'Issue must be in INSPECTING_WORK status for an AFTER photo — contractor must mark work done first');
   }
 
-  // CONTRACTOR photo: only the assigned CONTRACTOR, issue must be CONTRACTOR_ASSIGNED
+  // CONTRACTOR photo: only the assigned CONTRACTOR, issue must be IN_PROGRESS
   if (type === EvidenceType.CONTRACTOR) {
     if (uploaderRole !== Role.CONTRACTOR)
       throw new AppError(403, 'FORBIDDEN', 'Only a CONTRACTOR can upload a CONTRACTOR evidence photo');
     if (issue.contractorId !== uploaderId)
       throw new AppError(403, 'FORBIDDEN', 'Only the assigned contractor for this issue can upload this evidence');
-    if (issue.status !== IssueStatus.CONTRACTOR_ASSIGNED)
-      throw new AppError(400, 'INVALID_STATUS', 'Issue must be in CONTRACTOR_ASSIGNED status for a CONTRACTOR photo');
+    if (issue.status !== IssueStatus.IN_PROGRESS)
+      throw new AppError(400, 'INVALID_STATUS', 'Issue must be in IN_PROGRESS status for a CONTRACTOR photo');
   }
 
   // CITIZEN photo: uploader must be the citizen who created the issue, issue must be OPEN
@@ -279,20 +279,42 @@ export async function rejectEvidence(
     throw new AppError(400, 'MISMATCH', 'Evidence does not belong to this issue');
   }
 
-  // Delete the evidence so the inspector can re-upload
-  await prisma.evidence.delete({ where: { id: evidenceId } });
+  let newStatus = issue.status;
+  if (evidence.type === EvidenceType.CONTRACTOR) {
+    newStatus = IssueStatus.IN_PROGRESS;
+  } else if (evidence.type === EvidenceType.AFTER) {
+    newStatus = IssueStatus.INSPECTING_WORK;
+  }
 
-  // Audit log
-  await prisma.auditLog.create({
-    data: {
-      issueId,
-      actorId,
-      action: `EVIDENCE_REJECTED_${evidence.type}`,
-      metadata: { evidenceId, reason, fileUrl: evidence.fileUrl },
-    },
+  // Delete the evidence and downgrade status
+  await prisma.$transaction(async (tx) => {
+    await tx.evidence.delete({ where: { id: evidenceId } });
+    
+    // If the contractor's work is rejected, any existing AFTER verification photo is invalidated.
+    if (evidence.type === EvidenceType.CONTRACTOR) {
+      await tx.evidence.deleteMany({
+        where: { issueId, type: EvidenceType.AFTER }
+      });
+    }
+
+    if (newStatus !== issue.status) {
+      await tx.issue.update({
+        where: { id: issueId },
+        data: { status: newStatus },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        issueId,
+        actorId,
+        action: `EVIDENCE_REJECTED_${evidence.type}`,
+        metadata: { evidenceId, reason, fileUrl: evidence.fileUrl, previousStatus: issue.status, newStatus },
+      },
+    });
   });
 
-  // Notify the person who uploaded it (the inspector)
+  // Notify the person who uploaded it
   await notify(
     evidence.uploadedById,
     `${evidence.type} Photo Rejected ❌`,
@@ -300,5 +322,5 @@ export async function rejectEvidence(
     { issueId }
   );
 
-  return { success: true, message: 'Evidence rejected and deleted. Inspector notified.' };
+  return { success: true, message: 'Evidence rejected and deleted. Uploader notified and status updated if applicable.' };
 }

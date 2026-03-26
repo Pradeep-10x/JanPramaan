@@ -26,9 +26,9 @@ export function getProgressScore(status: IssueStatus): number {
     [IssueStatus.ASSIGNED]:            25,
     [IssueStatus.INSPECTING]:          40,
     [IssueStatus.CONTRACTOR_ASSIGNED]: 55,
-    [IssueStatus.WORK_DONE]:           70,
+    [IssueStatus.INSPECTING_WORK]:     70,
     [IssueStatus.UNDER_REVIEW]:        85,
-    [IssueStatus.IN_PROGRESS]:         60,
+    [IssueStatus.IN_PROGRESS]:         55,
     [IssueStatus.COMPLETED]:           95,
     [IssueStatus.VERIFIED]:           100,
   };
@@ -81,11 +81,27 @@ export async function createIssue(input: CreateIssueInput) {
     }
   }
 
-  // Find an officer assigned to this ward for dashboard routing
-  const officer = await prisma.user.findFirst({
+  // Find an officer in the ward using round-robin (the one who was assigned an issue longest ago)
+  const officers = await prisma.user.findMany({
     where: { adminUnitId: input.wardId, role: Role.OFFICER },
-    orderBy: { createdAt: 'asc' },
+    include: {
+      assignedIssues: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { createdAt: true },
+      },
+    },
   });
+  
+  let officer = null;
+  if (officers.length > 0) {
+    officers.sort((a, b) => {
+      const timeA = a.assignedIssues[0]?.createdAt.getTime() || 0;
+      const timeB = b.assignedIssues[0]?.createdAt.getTime() || 0;
+      return timeA - timeB; // Oldest time first
+    });
+    officer = officers[0];
+  }
 
   const issue = await prisma.issue.create({
     data: {
@@ -175,13 +191,19 @@ export async function acceptIssue(
     throw new AppError(404, 'NOT_FOUND', 'Issue not found');
   }
 
-  if (issue.status !== IssueStatus.OPEN) {
-    throw new AppError(400, 'INVALID_STATUS', 'Only OPEN issues can be accepted');
+  if (issue.status !== IssueStatus.OPEN && issue.status !== IssueStatus.ASSIGNED) {
+    throw new AppError(400, 'INVALID_STATUS', 'Only OPEN or ASSIGNED issues can be accepted');
   }
 
   // Ward-match check: actor must belong to the same ward as the issue
   if (!actorAdminUnitId || actorAdminUnitId !== issue.wardId) {
     throw new AppError(403, 'FORBIDDEN', 'You can only accept issues in your own ward');
+  }
+
+  // Check authorization: Must be the currently assigned officer OR an Admin
+  const actor = await prisma.user.findUnique({ where: { id: actorId } });
+  if (issue.assignedToId && issue.assignedToId !== actorId && actor?.role !== Role.ADMIN) {
+    throw new AppError(403, 'FORBIDDEN', 'Only the assigned officer or an ADMIN can accept this issue');
   }
 
   const now = new Date();
@@ -227,7 +249,7 @@ export async function acceptIssue(
       adminUnitId: issue.wardId,
       role: Role.INSPECTOR,
       inspectedIssues: {
-        none: { status: { in: [IssueStatus.INSPECTING, IssueStatus.CONTRACTOR_ASSIGNED, IssueStatus.WORK_DONE] } },
+        none: { status: { in: [IssueStatus.INSPECTING, IssueStatus.IN_PROGRESS, IssueStatus.INSPECTING_WORK] } },
       },
     },
     orderBy: { createdAt: 'asc' },
@@ -291,12 +313,18 @@ export async function rejectIssue(
     throw new AppError(404, 'NOT_FOUND', 'Issue not found');
   }
 
-  if (issue.status !== IssueStatus.OPEN) {
-    throw new AppError(400, 'INVALID_STATUS', 'Only OPEN issues can be rejected');
+  if (issue.status !== IssueStatus.OPEN && issue.status !== IssueStatus.ASSIGNED) {
+    throw new AppError(400, 'INVALID_STATUS', 'Only OPEN or ASSIGNED issues can be rejected');
   }
 
   if (!actorAdminUnitId || actorAdminUnitId !== issue.wardId) {
     throw new AppError(403, 'FORBIDDEN', 'You can only reject issues in your own ward');
+  }
+
+  // Check authorization: Must be the currently assigned officer OR an Admin
+  const actor = await prisma.user.findUnique({ where: { id: actorId } });
+  if (issue.assignedToId && issue.assignedToId !== actorId && actor?.role !== Role.ADMIN) {
+    throw new AppError(403, 'FORBIDDEN', 'Only the assigned officer or an ADMIN can reject this issue');
   }
 
   if (!reason || reason.trim().length === 0) {
@@ -443,6 +471,15 @@ export async function assignIssue(issueId: string, actorId: string, input: Assig
     throw new AppError(404, 'NOT_FOUND', 'Issue not found');
   }
 
+  // Check authorization: Must be the currently assigned officer OR an Admin
+  const actor = await prisma.user.findUnique({ where: { id: actorId } });
+  const isAssignedOfficer = issue.assignedToId === actorId;
+  const isAdmin = actor?.role === Role.ADMIN;
+  
+  if (!isAssignedOfficer && !isAdmin) {
+    throw new AppError(403, 'FORBIDDEN', 'Only the assigned officer or an ADMIN can reassign this issue');
+  }
+
   const assignee = await prisma.user.findUnique({ where: { id: input.assignedToId } });
   if (!assignee) {
     throw new AppError(400, 'INVALID_USER', 'Assignee not found');
@@ -462,7 +499,7 @@ export async function assignIssue(issueId: string, actorId: string, input: Assig
       where: { id: issueId },
       data: {
         assignedToId: input.assignedToId,
-        status: IssueStatus.ASSIGNED,
+        status: IssueStatus.OPEN,
         slaDeadline,
       },
     }),
@@ -645,7 +682,7 @@ export async function assignInspector(issueId: string, actorId: string, inspecto
 /**
  * Hire a contractor for an issue (OFFICER/ADMIN action).
  * Issue must be INSPECTING and a BEFORE photo must already be uploaded.
- * Status transitions: INSPECTING → CONTRACTOR_ASSIGNED
+ * Status transitions: INSPECTING → IN_PROGRESS
  */
 export async function hireContractor(issueId: string, actorId: string, contractorId: string) {
   const issue = await prisma.issue.findUnique({
@@ -667,7 +704,7 @@ export async function hireContractor(issueId: string, actorId: string, contracto
   const [updated] = await prisma.$transaction([
     prisma.issue.update({
       where: { id: issueId },
-      data: { contractorId, status: IssueStatus.CONTRACTOR_ASSIGNED },
+      data: { contractorId, status: IssueStatus.IN_PROGRESS },
       include: {
         contractor: { select: { id: true, name: true } },
         inspector:  { select: { id: true, name: true } },
@@ -705,7 +742,7 @@ export async function hireContractor(issueId: string, actorId: string, contracto
 /**
  * Contractor marks their work as done.
  * Only the assigned contractor can call this.
- * Status transitions: CONTRACTOR_ASSIGNED → WORK_DONE
+ * Status transitions: IN_PROGRESS → INSPECTING_WORK
  */
 export async function markWorkDone(issueId: string, actorId: string) {
   const issue = await prisma.issue.findUnique({ 
@@ -715,15 +752,15 @@ export async function markWorkDone(issueId: string, actorId: string) {
   if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
   if (issue.contractorId !== actorId)
     throw new AppError(403, 'FORBIDDEN', 'Only the assigned contractor can mark work as done');
-  if (issue.status !== IssueStatus.CONTRACTOR_ASSIGNED)
-    throw new AppError(400, 'INVALID_STATUS', 'Issue must be in CONTRACTOR_ASSIGNED status');
+  if (issue.status !== IssueStatus.IN_PROGRESS)
+    throw new AppError(400, 'INVALID_STATUS', 'Issue must be in IN_PROGRESS status');
   if (issue.evidence.length === 0)
     throw new AppError(400, 'MISSING_CONTRACTOR_PHOTO', 'Contractor must upload a CONTRACTOR evidence photo before marking work as done');
 
   const [updated] = await prisma.$transaction([
     prisma.issue.update({
       where: { id: issueId },
-      data: { status: IssueStatus.WORK_DONE },
+      data: { status: IssueStatus.INSPECTING_WORK },
       include: { ward: { select: { id: true, name: true } } },
     }),
     prisma.auditLog.create({
