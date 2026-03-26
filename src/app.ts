@@ -27,6 +27,7 @@ import notificationsRoutes from './routes/notifications.routes';
 import metricsRoutes from './routes/metrics.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import otpRoutes from "./routes/otp.js";
+import voiceRoutes from './routes/voice.routes';
 
 // Verification route (inline)
 import { Router } from 'express';
@@ -52,6 +53,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.resolve(config.uploadDir)));
+// Serve demo / public static files
+app.use(express.static(path.resolve('public')));
 
 // ─── Health check ─────────────────────────────────────────
 app.get('/health', async (_req, res) => {
@@ -80,6 +83,7 @@ app.use('/api/residents', residentsRoutes);
 app.use('/api/notify', notificationsRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/voice', voiceRoutes);
 
 import { setupSwagger } from './swagger.js';
 setupSwagger(app);
