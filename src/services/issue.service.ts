@@ -708,12 +708,17 @@ export async function hireContractor(issueId: string, actorId: string, contracto
  * Status transitions: CONTRACTOR_ASSIGNED → WORK_DONE
  */
 export async function markWorkDone(issueId: string, actorId: string) {
-  const issue = await prisma.issue.findUnique({ where: { id: issueId } });
+  const issue = await prisma.issue.findUnique({ 
+    where: { id: issueId },
+    include: { evidence: { where: { type: EvidenceType.CONTRACTOR } } },
+  });
   if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
   if (issue.contractorId !== actorId)
     throw new AppError(403, 'FORBIDDEN', 'Only the assigned contractor can mark work as done');
   if (issue.status !== IssueStatus.CONTRACTOR_ASSIGNED)
     throw new AppError(400, 'INVALID_STATUS', 'Issue must be in CONTRACTOR_ASSIGNED status');
+  if (issue.evidence.length === 0)
+    throw new AppError(400, 'MISSING_CONTRACTOR_PHOTO', 'Contractor must upload a CONTRACTOR evidence photo before marking work as done');
 
   const [updated] = await prisma.$transaction([
     prisma.issue.update({

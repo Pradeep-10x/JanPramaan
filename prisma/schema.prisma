@@ -246,6 +246,7 @@ enum EvidenceType {
   CITIZEN  // photo submitted by citizen when filing the issue
   BEFORE   // BEFORE photo uploaded by inspector (pre-repair)
   AFTER    // AFTER  photo uploaded by inspector (post-repair)
+  CONTRACTOR // photo submitted by contractor when work is marked done
 }
 
 enum VerificationVerdict {

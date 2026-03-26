@@ -43,7 +43,7 @@ export interface FraudCheckResult {
 export async function checkPhotoFraud(
   imageBuffer: Buffer,
   issueId:     string,
-  evidenceType: 'BEFORE' | 'AFTER' | 'CITIZEN',
+  evidenceType: 'BEFORE' | 'AFTER' | 'CITIZEN' | 'CONTRACTOR',
 ): Promise<FraudCheckResult> {
   // Compute hash for the incoming image
   const pHash = await dHash(imageBuffer);

@@ -32,7 +32,7 @@ export async function uploadEvidence(
   // Validate issue exists
   const issue = await prisma.issue.findUnique({
     where: { id: issueId },
-    select: { id: true, title: true, status: true, latitude: true, longitude: true, inspectorId: true, wardId: true, createdById: true },
+    select: { id: true, title: true, status: true, latitude: true, longitude: true, inspectorId: true, contractorId: true, wardId: true, createdById: true },
   });
   if (!issue) {
     throw new AppError(404, 'NOT_FOUND', 'Issue not found');
@@ -56,6 +56,16 @@ export async function uploadEvidence(
       throw new AppError(403, 'FORBIDDEN', 'Only the assigned inspector for this issue can upload AFTER evidence');
     if (issue.status !== IssueStatus.WORK_DONE)
       throw new AppError(400, 'INVALID_STATUS', 'Issue must be in WORK_DONE status for an AFTER photo — contractor must mark work done first');
+  }
+
+  // CONTRACTOR photo: only the assigned CONTRACTOR, issue must be CONTRACTOR_ASSIGNED
+  if (type === EvidenceType.CONTRACTOR) {
+    if (uploaderRole !== Role.CONTRACTOR)
+      throw new AppError(403, 'FORBIDDEN', 'Only a CONTRACTOR can upload a CONTRACTOR evidence photo');
+    if (issue.contractorId !== uploaderId)
+      throw new AppError(403, 'FORBIDDEN', 'Only the assigned contractor for this issue can upload this evidence');
+    if (issue.status !== IssueStatus.CONTRACTOR_ASSIGNED)
+      throw new AppError(400, 'INVALID_STATUS', 'Issue must be in CONTRACTOR_ASSIGNED status for a CONTRACTOR photo');
   }
 
   // CITIZEN photo: uploader must be the citizen who created the issue, issue must be OPEN

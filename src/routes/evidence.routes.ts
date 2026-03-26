@@ -38,9 +38,9 @@ const router = Router();
  *                 format: binary
  *     responses:
  *       200:
- *         description: File uploaded successfully. **Required Roles:** INSPECTOR, OFFICER, ADMIN
+ *         description: File uploaded successfully. **Required Roles:** INSPECTOR, OFFICER, ADMIN, CONTRACTOR
  */
-router.post('/:id/evidence', authMiddleware, requireRole('INSPECTOR', 'OFFICER', 'ADMIN'), upload.single('file'), evidenceCtrl.upload);
+router.post('/:id/evidence', authMiddleware, requireRole('INSPECTOR', 'OFFICER', 'ADMIN', 'CONTRACTOR'), upload.single('file'), evidenceCtrl.upload);
 
 /**
  * @openapi
