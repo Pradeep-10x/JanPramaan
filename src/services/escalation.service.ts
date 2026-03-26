@@ -88,12 +88,21 @@ export async function runEscalationCheck(): Promise<{ escalated: number }> {
 
   if (slaBreached.length) {
     for (const issue of slaBreached) {
-      // Notify only the assigned officer
+      // Notify the assigned officer
       if (issue.assignedToId) {
         await notify(
           issue.assignedToId,
           '🚨 Deadline Missed',
           `"${issue.title}" in ${issue.ward.name} has exceeded its deadline. Current status: ${issue.status}. Please take action.`,
+          { issueId: issue.id },
+        );
+      }
+      // Notify the assigned contractor
+      if (issue.contractorId) {
+        await notify(
+          issue.contractorId,
+          '🚨 Deadline Missed',
+          `Your work deadline for "${issue.title}" in ${issue.ward.name} has been exceeded. Please complete the work immediately.`,
           { issueId: issue.id },
         );
       }

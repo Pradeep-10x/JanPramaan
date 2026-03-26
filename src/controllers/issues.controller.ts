@@ -255,12 +255,7 @@ export async function assign(req: Request, res: Response, next: NextFunction) {
 export async function accept(req: Request, res: Response, next: NextFunction) {
   try {
     const id = req.params.id as string;
-    const result = await issueService.acceptIssue(
-      id,
-      req.user!.id,
-      req.user!.adminUnitId,
-      req.body.slaDeadline,  // optional ISO date string
-    );
+    const result = await issueService.acceptIssue(id, req.user!.id, req.user!.adminUnitId);
     res.json(result);
   } catch (err) {
     next(err);
@@ -313,7 +308,12 @@ export async function hireContractor(req: Request, res: Response, next: NextFunc
       res.status(400).json({ error: 'contractorId is required and must be a string' });
       return;
     }
-    const result = await issueService.hireContractor(id, req.user!.id, req.body.contractorId);
+    const result = await issueService.hireContractor(
+      id,
+      req.user!.id,
+      req.body.contractorId,
+      req.body.slaDeadline,  // optional deadline for the contractor
+    );
     res.json(result);
   } catch (err) {
     next(err);

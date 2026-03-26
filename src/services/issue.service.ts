@@ -185,7 +185,6 @@ export async function acceptIssue(
   issueId: string,
   actorId: string,
   actorAdminUnitId: string | null,
-  slaDeadline?: string,  // optional ISO date string from officer
 ) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
   if (!issue) {
@@ -209,15 +208,6 @@ export async function acceptIssue(
 
   const now = new Date();
 
-  // Parse optional SLA deadline
-  const parsedDeadline = slaDeadline ? new Date(slaDeadline) : null;
-  if (parsedDeadline && isNaN(parsedDeadline.getTime())) {
-    throw new AppError(400, 'INVALID_DEADLINE', 'slaDeadline must be a valid ISO date string');
-  }
-  if (parsedDeadline && parsedDeadline <= now) {
-    throw new AppError(400, 'INVALID_DEADLINE', 'slaDeadline must be in the future');
-  }
-
   const [updated] = await prisma.$transaction([
     prisma.issue.update({
       where: { id: issueId },
@@ -225,7 +215,6 @@ export async function acceptIssue(
         status: IssueStatus.ACCEPTED,
         acceptedById: actorId,
         acceptedAt: now,
-        ...(parsedDeadline ? { slaDeadline: parsedDeadline } : {}),
       },
       include: {
         ward: { select: { id: true, name: true } },
@@ -241,7 +230,6 @@ export async function acceptIssue(
         action: 'ISSUE_ACCEPTED',
         metadata: {
           previousStatus: issue.status,
-          ...(parsedDeadline ? { slaDeadline: parsedDeadline.toISOString() } : {}),
         },
       },
     }),
@@ -693,8 +681,14 @@ export async function assignInspector(issueId: string, actorId: string, inspecto
  * Hire a contractor for an issue (OFFICER/ADMIN action).
  * Issue must be INSPECTING and a BEFORE photo must already be uploaded.
  * Status transitions: INSPECTING → IN_PROGRESS
+ * Optionally set a work deadline (slaDeadline) for the contractor.
  */
-export async function hireContractor(issueId: string, actorId: string, contractorId: string) {
+export async function hireContractor(
+  issueId: string,
+  actorId: string,
+  contractorId: string,
+  slaDeadline?: string,  // optional ISO date string
+) {
   const issue = await prisma.issue.findUnique({
     where: { id: issueId },
     include: { evidence: { where: { type: EvidenceType.BEFORE } } },
@@ -711,10 +705,24 @@ export async function hireContractor(issueId: string, actorId: string, contracto
   if (contractor.adminUnitId !== issue.wardId)
     throw new AppError(403, 'WRONG_WARD', 'Contractor does not belong to the same ward as the issue');
 
+  // Parse optional deadline
+  const now = new Date();
+  const parsedDeadline = slaDeadline ? new Date(slaDeadline) : null;
+  if (parsedDeadline && isNaN(parsedDeadline.getTime())) {
+    throw new AppError(400, 'INVALID_DEADLINE', 'slaDeadline must be a valid ISO date string');
+  }
+  if (parsedDeadline && parsedDeadline <= now) {
+    throw new AppError(400, 'INVALID_DEADLINE', 'slaDeadline must be in the future');
+  }
+
   const [updated] = await prisma.$transaction([
     prisma.issue.update({
       where: { id: issueId },
-      data: { contractorId, status: IssueStatus.IN_PROGRESS },
+      data: {
+        contractorId,
+        status: IssueStatus.IN_PROGRESS,
+        ...(parsedDeadline ? { slaDeadline: parsedDeadline } : {}),
+      },
       include: {
         contractor: { select: { id: true, name: true } },
         inspector:  { select: { id: true, name: true } },
@@ -725,16 +733,23 @@ export async function hireContractor(issueId: string, actorId: string, contracto
       data: {
         issueId, actorId,
         action: 'CONTRACTOR_HIRED',
-        metadata: { contractorId, contractorName: contractor.name },
+        metadata: {
+          contractorId,
+          contractorName: contractor.name,
+          ...(parsedDeadline ? { slaDeadline: parsedDeadline.toISOString() } : {}),
+        },
       },
     }),
   ]);
 
   // Notify the contractor
+  const deadlineMsg = parsedDeadline
+    ? ` Deadline: ${parsedDeadline.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`
+    : '';
   await notify(
     contractorId,
     'Work Assignment',
-    `You have been hired to fix issue "${issue.title}". Please complete the work and mark it as done.`,
+    `You have been hired to fix issue "${issue.title}". Please complete the work and mark it as done.${deadlineMsg}`,
     { issueId },
   );
 
