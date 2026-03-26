@@ -185,6 +185,7 @@ export async function acceptIssue(
   issueId: string,
   actorId: string,
   actorAdminUnitId: string | null,
+  slaDeadline?: string,  // optional ISO date string from officer
 ) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
   if (!issue) {
@@ -208,6 +209,15 @@ export async function acceptIssue(
 
   const now = new Date();
 
+  // Parse optional SLA deadline
+  const parsedDeadline = slaDeadline ? new Date(slaDeadline) : null;
+  if (parsedDeadline && isNaN(parsedDeadline.getTime())) {
+    throw new AppError(400, 'INVALID_DEADLINE', 'slaDeadline must be a valid ISO date string');
+  }
+  if (parsedDeadline && parsedDeadline <= now) {
+    throw new AppError(400, 'INVALID_DEADLINE', 'slaDeadline must be in the future');
+  }
+
   const [updated] = await prisma.$transaction([
     prisma.issue.update({
       where: { id: issueId },
@@ -215,6 +225,7 @@ export async function acceptIssue(
         status: IssueStatus.ACCEPTED,
         acceptedById: actorId,
         acceptedAt: now,
+        ...(parsedDeadline ? { slaDeadline: parsedDeadline } : {}),
       },
       include: {
         ward: { select: { id: true, name: true } },
@@ -228,7 +239,10 @@ export async function acceptIssue(
         issueId,
         actorId,
         action: 'ISSUE_ACCEPTED',
-        metadata: { previousStatus: issue.status },
+        metadata: {
+          previousStatus: issue.status,
+          ...(parsedDeadline ? { slaDeadline: parsedDeadline.toISOString() } : {}),
+        },
       },
     }),
   ]);
@@ -491,16 +505,12 @@ export async function assignIssue(issueId: string, actorId: string, input: Assig
     throw new AppError(403, 'WRONG_WARD', 'Assignee does not belong to the same ward as the issue');
   }
 
-  const slaHours = input.slaHours ?? config.slaDefaultHours;
-  const slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000);
-
   const [updated] = await prisma.$transaction([
     prisma.issue.update({
       where: { id: issueId },
       data: {
         assignedToId: input.assignedToId,
         status: IssueStatus.OPEN,
-        slaDeadline,
       },
     }),
     prisma.auditLog.create({
@@ -508,7 +518,7 @@ export async function assignIssue(issueId: string, actorId: string, input: Assig
         issueId,
         actorId,
         action: 'ISSUE_ASSIGNED',
-        metadata: { assignedToId: input.assignedToId, slaHours },
+        metadata: { assignedToId: input.assignedToId },
       },
     }),
   ]);
@@ -517,7 +527,7 @@ export async function assignIssue(issueId: string, actorId: string, input: Assig
   await notify(
     input.assignedToId,
     'Issue Assigned to You',
-    `You have been assigned to handle issue "${issue.title}". SLA: ${slaHours} hours.`,
+    `You have been assigned to handle issue "${issue.title}".`,
     { issueId },
   );
 

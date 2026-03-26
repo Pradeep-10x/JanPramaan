@@ -88,32 +88,15 @@ export async function runEscalationCheck(): Promise<{ escalated: number }> {
 
   if (slaBreached.length) {
     for (const issue of slaBreached) {
-      const admins = await prisma.user.findMany({
-        where: { adminUnitId: issue.wardId, role: Role.ADMIN },
-        select: { id: true },
-      });
-      for (const admin of admins) {
-        await notify(
-          admin.id,
-          '🚨 SLA Breached',
-          `"${issue.title}" in ${issue.ward.name} has exceeded its SLA deadline and is still ${issue.status}.`,
-          { issueId: issue.id },
-        );
-      }
+      // Notify only the assigned officer
       if (issue.assignedToId) {
         await notify(
           issue.assignedToId,
-          '🚨 SLA Breached — Your Issue',
-          `"${issue.title}" assigned to you has exceeded its SLA deadline. Current status: ${issue.status}. Please take action immediately.`,
+          '🚨 Deadline Missed',
+          `"${issue.title}" in ${issue.ward.name} has exceeded its deadline. Current status: ${issue.status}. Please take action.`,
           { issueId: issue.id },
         );
       }
-      await notify(
-        issue.createdById,
-        '⏰ Your Issue Is Overdue',
-        `We are sorry — your issue "${issue.title}" has exceeded its target resolution time. Our team has been alerted.`,
-        { issueId: issue.id },
-      );
       await prisma.issue.update({ where: { id: issue.id }, data: { escalatedAt: now } });
       await prisma.auditLog.create({
         data: {

@@ -255,7 +255,12 @@ export async function assign(req: Request, res: Response, next: NextFunction) {
 export async function accept(req: Request, res: Response, next: NextFunction) {
   try {
     const id = req.params.id as string;
-    const result = await issueService.acceptIssue(id, req.user!.id, req.user!.adminUnitId);
+    const result = await issueService.acceptIssue(
+      id,
+      req.user!.id,
+      req.user!.adminUnitId,
+      req.body.slaDeadline,  // optional ISO date string
+    );
     res.json(result);
   } catch (err) {
     next(err);
