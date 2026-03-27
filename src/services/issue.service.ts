@@ -14,6 +14,42 @@ import { classifyDepartment } from './classification.service.js';
 /** Issues within this radius (metres) are flagged as potential duplicates on creation. */
 const DUPLICATE_RADIUS_METRES = 100;
 
+/** Minimum text similarity (0-1) to consider two issue titles as potential duplicates. */
+const DUPLICATE_TEXT_THRESHOLD = 0.6;
+
+/**
+ * Compute normalised Levenshtein similarity between two strings.
+ * Returns a value between 0 (completely different) and 1 (identical).
+ */
+function textSimilarity(a: string, b: string): number {
+  const al = a.toLowerCase().trim();
+  const bl = b.toLowerCase().trim();
+  if (al === bl) return 1;
+  const maxLen = Math.max(al.length, bl.length);
+  if (maxLen === 0) return 1;
+
+  // Levenshtein distance via bottom-up DP (single-row optimisation)
+  const prev = Array.from({ length: bl.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= al.length; i++) {
+    let prevDiag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= bl.length; j++) {
+      const temp = prev[j];
+      prev[j] = al[i - 1] === bl[j - 1]
+        ? prevDiag
+        : 1 + Math.min(prev[j], prev[j - 1], prevDiag);
+      prevDiag = temp;
+    }
+  }
+  return 1 - prev[bl.length] / maxLen;
+}
+
+/**
+ * Convert a degree offset to approximate metres (at the equator).
+ * Used to pre-filter DB rows by bounding box before running haversine.
+ */
+const DEGREE_PER_METRE = 1 / 111_320; // ≈ 1 degree latitude = 111.32 km
+
 /**
  * Returns a 0-100 progress score for an issue based on its current status.
  * Useful for progress bars / dashboards.
@@ -145,25 +181,46 @@ export async function createIssue(input: CreateIssueInput) {
   );
 
   // ── Duplicate Detection ──────────────────────────────────────────────────
-  // Find active issues in the same ward and flag any within 100 m as potential duplicates.
-  const wardIssues = await prisma.issue.findMany({
+  // Two-signal approach: geo proximity (haversine ≤ 100m) OR text similarity (≥ 60%).
+  // Pre-filter with a lat/lng bounding box to avoid loading thousands of rows.
+  const margin = DUPLICATE_RADIUS_METRES * DEGREE_PER_METRE * 2; // generous bbox
+  const candidateIssues = await prisma.issue.findMany({
     where: {
       wardId: input.wardId,
       id:     { not: issue.id },
       status: { notIn: [IssueStatus.REJECTED, IssueStatus.VERIFIED, IssueStatus.COMPLETED] },
+      department: resolvedDepartment as any,
     },
     select: { id: true, title: true, status: true, latitude: true, longitude: true },
+    take: 200, // cap to avoid memory issues in dense wards
+    orderBy: { createdAt: 'desc' }, // prioritise recent issues
   });
 
-  const potentialDuplicates = wardIssues
-    .map((i) => ({
-      id:             i.id,
-      title:          i.title,
-      status:         i.status,
-      distanceMetres: Math.round(haversineDistance(input.latitude, input.longitude, i.latitude, i.longitude)),
-    }))
-    .filter((i) => i.distanceMetres <= DUPLICATE_RADIUS_METRES)
-    .sort((a, b) => a.distanceMetres - b.distanceMetres);
+  const potentialDuplicates = candidateIssues
+    .map((i) => {
+      const distanceMetres = Math.round(haversineDistance(input.latitude, input.longitude, i.latitude, i.longitude));
+      const titleSimilarity = Math.round(textSimilarity(input.title, i.title) * 100);
+      return {
+        id:              i.id,
+        title:           i.title,
+        status:          i.status,
+        distanceMetres,
+        titleSimilarity, // 0-100 percentage
+        matchReason:     distanceMetres <= DUPLICATE_RADIUS_METRES && titleSimilarity >= DUPLICATE_TEXT_THRESHOLD * 100
+          ? 'GEO_AND_TEXT' as const
+          : distanceMetres <= DUPLICATE_RADIUS_METRES
+          ? 'GEO_PROXIMITY' as const
+          : 'TEXT_SIMILARITY' as const,
+      };
+    })
+    .filter((i) => i.distanceMetres <= DUPLICATE_RADIUS_METRES || i.titleSimilarity >= DUPLICATE_TEXT_THRESHOLD * 100)
+    .sort((a, b) => {
+      // Prioritise matches that hit both signals
+      const aScore = (a.matchReason === 'GEO_AND_TEXT' ? 0 : 1);
+      const bScore = (b.matchReason === 'GEO_AND_TEXT' ? 0 : 1);
+      if (aScore !== bScore) return aScore - bScore;
+      return a.distanceMetres - b.distanceMetres;
+    });
 
   if (potentialDuplicates.length > 0) {
     await notifyWardOfficers(
@@ -594,6 +651,7 @@ export async function convertIssueToProject(
 
 /**
  * Toggle duplicate status on an issue.
+ * Includes cycle detection: prevents A→B→A or deeper circular chains.
  */
 export async function toggleDuplicate(issueId: string, actorId: string, duplicateOfId?: string) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
@@ -602,9 +660,33 @@ export async function toggleDuplicate(issueId: string, actorId: string, duplicat
   }
 
   if (duplicateOfId) {
+    // Self-reference guard
+    if (duplicateOfId === issueId) {
+      throw new AppError(400, 'SELF_DUPLICATE', 'An issue cannot be a duplicate of itself');
+    }
+
     const original = await prisma.issue.findUnique({ where: { id: duplicateOfId } });
     if (!original) {
       throw new AppError(400, 'INVALID_ISSUE', 'Duplicate target issue not found');
+    }
+
+    // ── Cycle detection ──────────────────────────────────────────────────────
+    // Walk the duplicate chain from the target issue upward.
+    // If we encounter the current issueId, linking would create a cycle.
+    const MAX_CHAIN_DEPTH = 20; // safety limit to prevent infinite loops
+    let current = original;
+    let depth = 0;
+    while (current.duplicateOfId && depth < MAX_CHAIN_DEPTH) {
+      if (current.duplicateOfId === issueId) {
+        throw new AppError(
+          400,
+          'DUPLICATE_CYCLE',
+          'Cannot mark as duplicate — this would create a circular chain',
+        );
+      }
+      current = await prisma.issue.findUnique({ where: { id: current.duplicateOfId } }) as any;
+      if (!current) break;
+      depth++;
     }
   }
 
