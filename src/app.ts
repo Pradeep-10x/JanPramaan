@@ -29,6 +29,7 @@ import dashboardRoutes from './routes/dashboard.routes';
 import otpRoutes from "./routes/otp.js";
 import voiceRoutes from './routes/voice.routes';
 import commentRoutes from './routes/comment.routes';
+import auditRoutes from './routes/audit.routes';
 
 // Verification route (inline)
 import { Router } from 'express';
@@ -90,6 +91,7 @@ app.use('/api/metrics', metricsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/voice', voiceRoutes);
 app.use('/api/issues/:issueId/comments', commentRoutes);
+app.use('/api/audit', auditRoutes);
 
 import { setupSwagger } from './swagger.js';
 setupSwagger(app);

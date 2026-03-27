@@ -176,6 +176,8 @@ model AuditLog {
   action    String
   metadata  Json?
   createdAt DateTime @default(now())
+  entryHash String?            // SHA-256(content + prevHash) — tamper detection
+  prevHash  String?            // hash of the previous audit log entry
   actor     User?    @relation("AuditActor", fields: [actorId], references: [id])
   issue     Issue?   @relation(fields: [issueId], references: [id])
   project   Project? @relation(fields: [projectId], references: [id])
@@ -183,6 +185,7 @@ model AuditLog {
   @@index([issueId])
   @@index([projectId])
   @@index([actorId])
+  @@index([createdAt])
 }
 
 model Resident {
