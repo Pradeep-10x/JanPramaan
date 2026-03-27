@@ -95,6 +95,31 @@ router.patch('/me/ward', authMiddleware, usersCtrl.updateMyWard);
 
 /**
  * @openapi
+ * /api/users/me/language:
+ *   patch:
+ *     summary: Update language preference (en or hi)
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [lang]
+ *             properties:
+ *               lang:
+ *                 type: string
+ *                 enum: [en, hi]
+ *     responses:
+ *       200:
+ *         description: Language preference updated
+ */
+router.patch('/me/language', authMiddleware, usersCtrl.updateLanguage);
+
+/**
+ * @openapi
  * /api/users/me/profile-pic:
  *   post:
  *     summary: Upload or update profile photo

@@ -1,6 +1,7 @@
 /**
  * JanPramaan — Auth service
  * Handles user registration (CITIZEN) and login with JWT generation.
+ * All user-facing messages are bilingual (en/hi) via i18n.
  */
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -11,6 +12,7 @@ import { AppError } from '../middleware/error.middleware';
 import { Role } from '../generated/prisma/client.js';
 import { isEmailVerified, cleanupUsedOtp, sendOtp, verifyOtp } from "./otp.js";
 import { getNearestWard } from "./adminUnit.service.js";
+import { tError, tMessage } from '../i18n/index.js';
 const SALT_ROUNDS = 12;
 
 // Create a Set for O(1) lookup
@@ -23,25 +25,29 @@ export interface RegisterInput {
   wardId?: string;      // manual override from "Change ward" dropdown
   deviceLat?: number;
   deviceLng?: number;
+  lang?: string;
 }
 
 export interface LoginInput {
   email: string;
   password: string;
+  lang?: string;
 }
 
 /**
  * Register a new CITIZEN user.
  */
 export async function registerUser(input: RegisterInput) {
+  const lang = input.lang || 'en';
+
   if (!input.email) {
-    throw Object.assign(new Error('Email is required for registration'), { statusCode: 400 });
+    throw Object.assign(new Error(tError('VALIDATION_ERROR', lang, 'Email is required for registration')), { statusCode: 400 });
   }
 
   // Check for disposable/temp email domains
   const domain = input.email.split('@')[1]?.toLowerCase();
   if (domain && DISPOSABLE_SET.has(domain)) {
-    throw new AppError(400, 'DISPOSABLE_EMAIL', 'Registration with temporary or disposable email addresses is not allowed');
+    throw new AppError(400, 'DISPOSABLE_EMAIL', tError('DISPOSABLE_EMAIL', lang));
   }
 
   // Resolve adminUnitId: manual wardId > device GPS auto-detect > null
@@ -51,7 +57,7 @@ export async function registerUser(input: RegisterInput) {
     // Manual selection from frontend dropdown — validate it exists
     const ward = await prisma.adminUnit.findUnique({ where: { id: input.wardId } });
     if (!ward || ward.type !== 'WARD') {
-      throw new AppError(400, 'INVALID_WARD', 'wardId must reference an existing WARD');
+      throw new AppError(400, 'INVALID_WARD', tError('INVALID_WARD', lang));
     }
     resolvedWardId = input.wardId;
   } else if (input.deviceLat !== undefined && input.deviceLng !== undefined) {
@@ -65,7 +71,7 @@ export async function registerUser(input: RegisterInput) {
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {
       if (existing.isEmailVerified) {
-         throw new AppError(409, 'EMAIL_EXISTS', 'A user with that email already exists');
+         throw new AppError(409, 'EMAIL_EXISTS', tError('EMAIL_EXISTS', lang));
       } else {
          // Overwrite unverified user
          await prisma.user.delete({ where: { email: input.email } });
@@ -84,6 +90,7 @@ export async function registerUser(input: RegisterInput) {
       role: Role.CITIZEN,
       adminUnitId: resolvedWardId ?? null,
       isEmailVerified: false,
+      preferredLang: lang,
     },
     select: { id: true, name: true, email: true, role: true, adminUnitId: true, createdAt: true },
   });
@@ -101,25 +108,30 @@ export async function registerUser(input: RegisterInput) {
     },
   });
 
-  return { message: "OTP sent to email. Please verify to complete registration.", tempUserId: user.id };
+  return { message: tMessage('OTP_VERIFY_PROMPT', lang), tempUserId: user.id };
 }
 
 /**
  * Authenticate a user by email + password and return a JWT.
  */
 export async function loginUser(input: LoginInput) {
+  const lang = input.lang || 'en';
+
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user) {
-    throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+    throw new AppError(401, 'INVALID_CREDENTIALS', tError('INVALID_CREDENTIALS', lang));
   }
+
+  // Use user's preferred lang if available
+  const userLang = user.preferredLang || lang;
 
   const valid = await bcrypt.compare(input.password, user.passwordHash);
   if (!valid) {
-    throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+    throw new AppError(401, 'INVALID_CREDENTIALS', tError('INVALID_CREDENTIALS', userLang));
   }
 
   if (!user.isEmailVerified) {
-    throw new AppError(403, 'UNVERIFIED_EMAIL', 'Please verify your email address to log in');
+    throw new AppError(403, 'UNVERIFIED_EMAIL', tError('UNVERIFIED_EMAIL', userLang));
   }
 
   const token = jwt.sign({ userId: user.id, role: user.role }, config.jwtSecret, { expiresIn: '24h' });
@@ -141,6 +153,7 @@ export async function loginUser(input: LoginInput) {
       email: user.email,
       role: user.role,
       adminUnitId: user.adminUnitId,
+      preferredLang: user.preferredLang,
     },
   };
 }
@@ -148,12 +161,14 @@ export async function loginUser(input: LoginInput) {
 /**
  * Verifies OTP, marks user as verified, and logs them in.
  */
-export async function verifyAndLoginUser(email: string, otp: string) {
+export async function verifyAndLoginUser(email: string, otp: string, lang?: string) {
   const isValid = await verifyOtp(email, otp);
-  if (!isValid) throw new AppError(400, 'INVALID_OTP', 'Invalid or expired OTP');
+  if (!isValid) throw new AppError(400, 'INVALID_OTP', tError('INVALID_OTP', lang));
 
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new AppError(404, 'NOT_FOUND', 'User not found');
+  if (!user) throw new AppError(404, 'NOT_FOUND', tError('USER_NOT_FOUND', lang));
+
+  const userLang = user.preferredLang || lang || 'en';
   
   await prisma.user.update({
     where: { id: user.id },
@@ -181,29 +196,33 @@ export async function verifyAndLoginUser(email: string, otp: string) {
       email: user.email,
       role: user.role,
       adminUnitId: user.adminUnitId,
+      preferredLang: user.preferredLang,
     },
   };
 }
 
-export async function sendForgotPasswordOtp(email: string) {
+export async function sendForgotPasswordOtp(email: string, lang?: string) {
   const user = await prisma.user.findUnique({ where: { email } });
+  const l = user?.preferredLang || lang || 'en';
   if (!user) {
     // Return standard success to prevent email enumeration
-    return { message: "If this email is registered, an OTP has been sent." };
+    return { message: tMessage('OTP_IF_REGISTERED', l) };
   }
   await sendOtp(email);
-  return { message: "If this email is registered, an OTP has been sent." };
+  return { message: tMessage('OTP_IF_REGISTERED', l) };
 }
 
-export async function resetPassword(email: string, otp: string, newPassword: string) {
+export async function resetPassword(email: string, otp: string, newPassword: string, lang?: string) {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    throw new AppError(404, 'NOT_FOUND', 'Invalid request');
+    throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND', lang));
   }
+
+  const userLang = user.preferredLang || lang || 'en';
 
   const isValid = await verifyOtp(email, otp);
   if (!isValid) {
-    throw new AppError(400, 'INVALID_OTP', 'Invalid or expired OTP');
+    throw new AppError(400, 'INVALID_OTP', tError('INVALID_OTP', userLang));
   }
 
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
@@ -223,5 +242,5 @@ export async function resetPassword(email: string, otp: string, newPassword: str
     }
   });
 
-  return { message: "Password reset successfully" };
+  return { message: tMessage('PASSWORD_RESET', userLang) };
 }

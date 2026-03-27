@@ -10,6 +10,7 @@ import { config } from '../config';
 import { notify, notifyWardOfficers } from './notification.service.js';
 import { haversineDistance } from '../utils/geo.util.js';
 import { classifyDepartment } from './classification.service.js';
+import { tError, tNotify } from '../i18n/index.js';
 
 /** Issues within this radius (metres) are flagged as potential duplicates on creation. */
 const DUPLICATE_RADIUS_METRES = 100;
@@ -107,13 +108,13 @@ export async function createIssue(input: CreateIssueInput) {
   // Validate ward exists and is type WARD
   const ward = await prisma.adminUnit.findUnique({ where: { id: input.wardId } });
   if (!ward || ward.type !== 'WARD') {
-    throw new AppError(400, 'INVALID_WARD', 'wardId must reference an existing WARD');
+    throw new AppError(400, 'INVALID_WARD', tError('INVALID_WARD'));
   }
    
   if (input.projectId) {
     const project = await prisma.project.findUnique({ where: { id: input.projectId } });
     if (!project) {
-      throw new AppError(400, 'INVALID_PROJECT', 'Project not found');
+      throw new AppError(400, 'INVALID_PROJECT', tError('INVALID_PROJECT'));
     }
   }
 
@@ -175,8 +176,8 @@ export async function createIssue(input: CreateIssueInput) {
   // Notify all officers in the ward about the new issue
   await notifyWardOfficers(
     input.wardId,
-    'New Issue Reported',
-    `"${issue.title}" has been submitted in your ward (${issue.ward.name}).`,
+    tNotify('NEW_ISSUE_TITLE'),
+    tNotify('NEW_ISSUE_BODY', undefined, issue.title, issue.ward.name),
     { issueId: issue.id },
   );
 
@@ -225,8 +226,8 @@ export async function createIssue(input: CreateIssueInput) {
   if (potentialDuplicates.length > 0) {
     await notifyWardOfficers(
       input.wardId,
-      '⚠️ Possible Duplicate Issue',
-      `New issue "${issue.title}" may be a duplicate of ${potentialDuplicates.length} existing issue(s) nearby (within ${DUPLICATE_RADIUS_METRES}m).`,
+      tNotify('DUPLICATE_WARNING_TITLE'),
+      tNotify('DUPLICATE_WARNING_BODY', undefined, issue.title, potentialDuplicates.length, DUPLICATE_RADIUS_METRES),
       { issueId: issue.id },
     );
   }
@@ -246,22 +247,22 @@ export async function acceptIssue(
 ) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
   if (!issue) {
-    throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+    throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   }
 
   if (issue.status !== IssueStatus.OPEN && issue.status !== IssueStatus.ASSIGNED) {
-    throw new AppError(400, 'INVALID_STATUS', 'Only OPEN or ASSIGNED issues can be accepted');
+    throw new AppError(400, 'INVALID_STATUS', tError('INVALID_STATUS'));
   }
 
   // Ward-match check: actor must belong to the same ward as the issue
   if (!actorAdminUnitId || actorAdminUnitId !== issue.wardId) {
-    throw new AppError(403, 'FORBIDDEN', 'You can only accept issues in your own ward');
+    throw new AppError(403, 'FORBIDDEN', tError('FORBIDDEN'));
   }
 
   // Check authorization: Must be the currently assigned officer OR an Admin
   const actor = await prisma.user.findUnique({ where: { id: actorId } });
   if (issue.assignedToId && issue.assignedToId !== actorId && actor?.role !== Role.ADMIN) {
-    throw new AppError(403, 'FORBIDDEN', 'Only the assigned officer or an ADMIN can accept this issue');
+    throw new AppError(403, 'FORBIDDEN', tError('FORBIDDEN'));
   }
 
   const now = new Date();
@@ -298,8 +299,8 @@ export async function acceptIssue(
   // Notify the citizen who raised the issue
   await notify(
     issue.createdById,
-    'Issue Accepted ✓',
-    `Your issue "${issue.title}" has been accepted and is now being processed.`,
+    tNotify('ISSUE_ACCEPTED_TITLE'),
+    tNotify('ISSUE_ACCEPTED_BODY', undefined, issue.title),
     { issueId },
   );
 
@@ -340,14 +341,14 @@ export async function acceptIssue(
     ]);
     await notify(
       inspector.id,
-      'Inspection Assignment 🔍',
-      `You have been auto-assigned to inspect "${issue.title}". Please upload a BEFORE photo.`,
+      tNotify('INSPECTION_ASSIGNMENT'),
+      tNotify('INSPECTION_ASSIGN_BODY', undefined, issue.title),
       { issueId },
     );
     await notify(
       issue.createdById,
-      'Inspector Assigned 🔍',
-      `An inspector has been auto-assigned to your issue "${issue.title}". Site inspection is underway.`,
+      tNotify('INSPECTOR_ASSIGNED_TITLE'),
+      tNotify('INSPECTOR_ASSIGNED_BODY', undefined, issue.title),
       { issueId },
     );
     autoAssignedInspector = { id: inspector.id, name: inspector.name };
@@ -372,25 +373,25 @@ export async function rejectIssue(
 ) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
   if (!issue) {
-    throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+    throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   }
 
   if (issue.status !== IssueStatus.OPEN && issue.status !== IssueStatus.ASSIGNED) {
-    throw new AppError(400, 'INVALID_STATUS', 'Only OPEN or ASSIGNED issues can be rejected');
+    throw new AppError(400, 'INVALID_STATUS', tError('INVALID_STATUS'));
   }
 
   if (!actorAdminUnitId || actorAdminUnitId !== issue.wardId) {
-    throw new AppError(403, 'FORBIDDEN', 'You can only reject issues in your own ward');
+    throw new AppError(403, 'FORBIDDEN', tError('FORBIDDEN'));
   }
 
   // Check authorization: Must be the currently assigned officer OR an Admin
   const actor = await prisma.user.findUnique({ where: { id: actorId } });
   if (issue.assignedToId && issue.assignedToId !== actorId && actor?.role !== Role.ADMIN) {
-    throw new AppError(403, 'FORBIDDEN', 'Only the assigned officer or an ADMIN can reject this issue');
+    throw new AppError(403, 'FORBIDDEN', tError('FORBIDDEN'));
   }
 
   if (!reason || reason.trim().length === 0) {
-    throw new AppError(400, 'MISSING_REASON', 'A reason is required when rejecting an issue');
+    throw new AppError(400, 'MISSING_REASON', tError('MISSING_REASON'));
   }
 
   const now = new Date();
@@ -424,8 +425,8 @@ export async function rejectIssue(
   // Notify the citizen who raised the issue
   await notify(
     issue.createdById,
-    'Issue Rejected',
-    `Your issue "${issue.title}" was rejected. Reason: ${reason.trim()}`,
+    tNotify('ISSUE_REJECTED_TITLE'),
+    tNotify('ISSUE_REJECTED_BODY', undefined, issue.title, reason.trim()),
     { issueId },
   );
 
@@ -505,7 +506,7 @@ export async function getIssueById(id: string) {
   });
 
   if (!issue) {
-    throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+    throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   }
 
   // Fetch timeline (audit logs)
@@ -532,7 +533,7 @@ export async function getIssueById(id: string) {
 export async function assignIssue(issueId: string, actorId: string, input: AssignInput) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
   if (!issue) {
-    throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+    throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   }
 
   // Check authorization: Must be the currently assigned officer OR an Admin
@@ -541,18 +542,18 @@ export async function assignIssue(issueId: string, actorId: string, input: Assig
   const isAdmin = actor?.role === Role.ADMIN;
   
   if (!isAssignedOfficer && !isAdmin) {
-    throw new AppError(403, 'FORBIDDEN', 'Only the assigned officer or an ADMIN can reassign this issue');
+    throw new AppError(403, 'FORBIDDEN', tError('FORBIDDEN'));
   }
 
   const assignee = await prisma.user.findUnique({ where: { id: input.assignedToId } });
   if (!assignee) {
-    throw new AppError(400, 'INVALID_USER', 'Assignee not found');
+    throw new AppError(400, 'INVALID_USER', tError('INVALID_USER'));
   }
   if (assignee.role !== Role.OFFICER && assignee.role !== Role.ADMIN) {
-    throw new AppError(400, 'INVALID_ROLE', 'Assignee must be an OFFICER or ADMIN');
+    throw new AppError(400, 'INVALID_ROLE', tError('INVALID_ROLE'));
   }
   if (assignee.adminUnitId !== issue.wardId) {
-    throw new AppError(403, 'WRONG_WARD', 'Assignee does not belong to the same ward as the issue');
+    throw new AppError(403, 'WRONG_WARD', tError('WRONG_WARD'));
   }
 
   const [updated] = await prisma.$transaction([
@@ -576,8 +577,8 @@ export async function assignIssue(issueId: string, actorId: string, input: Assig
   // Notify the officer who was assigned
   await notify(
     input.assignedToId,
-    'Issue Assigned to You',
-    `You have been assigned to handle issue "${issue.title}".`,
+    tNotify('ISSUE_ASSIGNED_TITLE'),
+    tNotify('ISSUE_ASSIGNED_BODY', undefined, issue.title),
     { issueId },
   );
 
@@ -594,7 +595,7 @@ export async function convertIssueToProject(
 ) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
   if (!issue) {
-    throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+    throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   }
 
   // Resolve project status based on actor's role (mirrors project.service.ts logic)
@@ -641,8 +642,8 @@ export async function convertIssueToProject(
   // Notify the citizen who raised the issue
   await notify(
     issue.createdById,
-    'Issue Upgraded to Project 🏗️',
-    `Your issue "${issue.title}" has been converted into a project: "${input.title}".`,
+    tNotify('ISSUE_UPGRADED_TITLE'),
+    tNotify('ISSUE_UPGRADED_BODY', undefined, issue.title, input.title),
     { issueId, projectId: project.id },
   );
 
@@ -656,18 +657,18 @@ export async function convertIssueToProject(
 export async function toggleDuplicate(issueId: string, actorId: string, duplicateOfId?: string) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
   if (!issue) {
-    throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+    throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   }
 
   if (duplicateOfId) {
     // Self-reference guard
     if (duplicateOfId === issueId) {
-      throw new AppError(400, 'SELF_DUPLICATE', 'An issue cannot be a duplicate of itself');
+      throw new AppError(400, 'SELF_DUPLICATE', tError('SELF_DUPLICATE'));
     }
 
     const original = await prisma.issue.findUnique({ where: { id: duplicateOfId } });
     if (!original) {
-      throw new AppError(400, 'INVALID_ISSUE', 'Duplicate target issue not found');
+      throw new AppError(400, 'INVALID_ISSUE', tError('INVALID_ISSUE'));
     }
 
     // ── Cycle detection ──────────────────────────────────────────────────────
@@ -717,15 +718,15 @@ export async function toggleDuplicate(issueId: string, actorId: string, duplicat
  */
 export async function assignInspector(issueId: string, actorId: string, inspectorId: string) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
-  if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+  if (!issue) throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   if (issue.status !== IssueStatus.ACCEPTED && issue.status !== IssueStatus.INSPECTING)
-    throw new AppError(400, 'INVALID_STATUS', 'Issue must be ACCEPTED or INSPECTING to assign/reassign an inspector');
+    throw new AppError(400, 'INVALID_STATUS', tError('INVALID_STATUS'));
 
   const inspector = await prisma.user.findUnique({ where: { id: inspectorId } });
   if (!inspector || inspector.role !== Role.INSPECTOR)
-    throw new AppError(400, 'INVALID_USER', 'User must have INSPECTOR role');
+    throw new AppError(400, 'INVALID_USER', tError('INVALID_USER'));
   if (inspector.adminUnitId !== issue.wardId)
-    throw new AppError(403, 'WRONG_WARD', 'Inspector does not belong to the same ward as the issue');
+    throw new AppError(403, 'WRONG_WARD', tError('WRONG_WARD'));
 
   const [updated] = await prisma.$transaction([
     prisma.issue.update({
@@ -748,16 +749,16 @@ export async function assignInspector(issueId: string, actorId: string, inspecto
   // Notify the inspector
   await notify(
     inspectorId,
-    'Inspection Assignment',
-    `You have been assigned to inspect issue "${issue.title}". Please upload a BEFORE photo.`,
+    tNotify('INSPECTION_ASSIGNMENT'),
+    tNotify('INSPECTION_ASSIGN_BODY', undefined, issue.title),
     { issueId },
   );
 
   // Notify the citizen
   await notify(
     issue.createdById,
-    'Inspector Assigned 🔍',
-    `An inspector has been assigned to your issue "${issue.title}". Site inspection is underway.`,
+    tNotify('INSPECTOR_ASSIGNED_TITLE'),
+    tNotify('INSPECTOR_ASSIGNED_BODY', undefined, issue.title),
     { issueId },
   );
 
@@ -780,7 +781,7 @@ export async function hireContractor(
     where: { id: issueId },
     include: { evidence: { where: { type: EvidenceType.BEFORE } } },
   });
-  if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+  if (!issue) throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   if (issue.status !== IssueStatus.INSPECTING)
     throw new AppError(400, 'INVALID_STATUS', 'Inspector must be assigned first (status must be INSPECTING)');
   if (issue.evidence.length === 0)
@@ -799,7 +800,7 @@ export async function hireContractor(
   const isSameCityWard = contractor.adminUnit?.parentId === issueWard?.parentId;
 
   if (!isSameWard && !isCityLevel && !isSameCityWard) {
-    throw new AppError(403, 'WRONG_WARD', 'Contractor must belong to the same city as the issue');
+    throw new AppError(403, 'WRONG_WARD', tError('WRONG_WARD'));
   }
 
   // Parse optional deadline
@@ -871,11 +872,11 @@ export async function markWorkDone(issueId: string, actorId: string) {
     where: { id: issueId },
     include: { evidence: { where: { type: EvidenceType.CONTRACTOR } } },
   });
-  if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+  if (!issue) throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
   if (issue.contractorId !== actorId)
-    throw new AppError(403, 'FORBIDDEN', 'Only the assigned contractor can mark work as done');
+    throw new AppError(403, 'FORBIDDEN', tError('FORBIDDEN'));
   if (issue.status !== IssueStatus.IN_PROGRESS)
-    throw new AppError(400, 'INVALID_STATUS', 'Issue must be in IN_PROGRESS status');
+    throw new AppError(400, 'INVALID_STATUS', tError('INVALID_STATUS'));
   if (issue.evidence.length === 0)
     throw new AppError(400, 'MISSING_CONTRACTOR_PHOTO', 'Contractor must upload a CONTRACTOR evidence photo before marking work as done');
 
@@ -933,17 +934,17 @@ export async function setPriority(
   priority: IssuePriority,
 ) {
   const issue = await prisma.issue.findUnique({ where: { id: issueId } });
-  if (!issue) throw new AppError(404, 'NOT_FOUND', 'Issue not found');
+  if (!issue) throw new AppError(404, 'NOT_FOUND', tError('NOT_FOUND'));
 
   // Authorisation: must be the assigned officer OR a ward ADMIN
   const actor = await prisma.user.findUnique({ where: { id: actorId } });
-  if (!actor) throw new AppError(403, 'FORBIDDEN', 'Actor not found');
+  if (!actor) throw new AppError(403, 'FORBIDDEN', tError('FORBIDDEN'));
 
   const isAssignedOfficer = issue.assignedToId === actorId && actor.role === Role.OFFICER;
   const isWardAdmin = actor.role === Role.ADMIN && actor.adminUnitId === issue.wardId;
 
   if (!isAssignedOfficer && !isWardAdmin) {
-    throw new AppError(403, 'FORBIDDEN', 'Only the assigned officer or a ward ADMIN can set priority');
+    throw new AppError(403, 'FORBIDDEN', tError('FORBIDDEN'));
   }
 
   const previousPriority = issue.priority;

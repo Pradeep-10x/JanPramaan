@@ -6,6 +6,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { prisma } from '../prisma/client';
+import { tError } from '../i18n/index.js';
 
 export interface JwtPayload {
   userId: string;
@@ -19,6 +20,7 @@ declare global {
         id: string;
         role: string;
         adminUnitId: string | null;
+        lang: string;
       };
     }
   }
@@ -29,8 +31,9 @@ declare global {
  */
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
+  const lang = req.lang || 'en';
   if (!header || !header.startsWith('Bearer ')) {
-    res.status(401).json({ code: 'UNAUTHORIZED', message: 'Missing or invalid authorization header' });
+    res.status(401).json({ code: 'UNAUTHORIZED', message: tError('UNAUTHORIZED', lang) });
     return;
   }
 
@@ -40,18 +43,20 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     const payload = jwt.verify(token, config.jwtSecret) as JwtPayload;
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, role: true, adminUnitId: true },
+      select: { id: true, role: true, adminUnitId: true, preferredLang: true },
     });
 
     if (!user) {
-      res.status(401).json({ code: 'UNAUTHORIZED', message: 'User no longer exists' });
+      res.status(401).json({ code: 'UNAUTHORIZED', message: tError('USER_NOT_EXISTS', lang) });
       return;
     }
 
-     req.user = { id: user.id, role: user.role, adminUnitId: user.adminUnitId };
+    // User's DB preference overrides header
+    const userLang = user.preferredLang || lang;
+    req.user = { id: user.id, role: user.role, adminUnitId: user.adminUnitId, lang: userLang };
     next();
   } catch {
-    res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
+    res.status(401).json({ code: 'UNAUTHORIZED', message: tError('INVALID_TOKEN', lang) });
   }
 }
 
@@ -69,10 +74,15 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
     const payload = jwt.verify(token, config.jwtSecret) as JwtPayload;
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, role: true, adminUnitId: true },
+      select: { id: true, role: true, adminUnitId: true, preferredLang: true },
     });
     if (user) {
-      req.user = { id: user.id, role: user.role, adminUnitId: user.adminUnitId };
+      req.user = {
+        id: user.id,
+        role: user.role,
+        adminUnitId: user.adminUnitId,
+        lang: user.preferredLang || req.lang || 'en',
+      };
     }
   } catch {
     // Silent: token invalid but we don't block

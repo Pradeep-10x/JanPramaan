@@ -1,5 +1,6 @@
 /**
  * JanPramaan — Users controller
+ * All user-facing messages are bilingual via i18n.
  */
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
@@ -8,15 +9,17 @@ import { getNearestWard } from '../services/adminUnit.service.js';
 import { prisma } from '../prisma/client.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { storeFile } from '../utils/storage.util.js';
+import { tError } from '../i18n/index.js';
 
 export const profileUpload = multer({ storage: multer.memoryStorage() });
 
 export async function createUser(req: Request, res: Response, next: NextFunction) {
   try {
+    const lang = req.user?.lang || req.lang || 'en';
     const result = await userService.createUser({
       ...req.body,
       adminUnitId: req.body.adminUnitId || req.user!.adminUnitId,
-    }, req.user!.id);
+    }, req.user!.id, lang);
     res.status(201).json(result);
   } catch (err) {
     next(err);
@@ -25,10 +28,11 @@ export async function createUser(req: Request, res: Response, next: NextFunction
 
 export async function createContractor(req: Request, res: Response, next: NextFunction) {
   try {
+    const lang = req.user?.lang || req.lang || 'en';
     const result = await userService.createContractor({
       ...req.body,
       adminUnitId: req.user!.adminUnitId,
-    }, req.user!.id);
+    }, req.user!.id, lang);
     res.status(201).json(result);
   } catch (err) {
     next(err);
@@ -37,7 +41,8 @@ export async function createContractor(req: Request, res: Response, next: NextFu
 
 export async function getMe(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await userService.getUserProfile(req.user!.id);
+    const lang = req.user?.lang || req.lang || 'en';
+    const result = await userService.getUserProfile(req.user!.id, lang);
     res.json(result);
   } catch (err) {
     next(err);
@@ -47,7 +52,6 @@ export async function getMe(req: Request, res: Response, next: NextFunction) {
 /**
  * GET /api/users?adminUnitId=&role=
  * List all users belonging to an admin unit (ward/city).
- * Optionally filter by role. ADMIN only.
  */
 export async function listByUnit(req: Request, res: Response, next: NextFunction) {
   try {
@@ -61,14 +65,14 @@ export async function listByUnit(req: Request, res: Response, next: NextFunction
 
     let unitCondition: any = adminUnitId ? { adminUnitId } : {};
 
-    // For contractors, fetch all contractors in the entire city (parent unit + all child wards)
+    // For contractors, fetch all contractors in the entire city
     if (role === 'CONTRACTOR' && adminUnitId) {
       const unit = await prisma.adminUnit.findUnique({ where: { id: adminUnitId } });
       if (unit && unit.type === 'WARD' && unit.parentId) {
         unitCondition = {
           OR: [
-            { adminUnitId: unit.parentId }, // City-level contractors
-            { adminUnit: { parentId: unit.parentId } }, // Ward-level contractors in same city
+            { adminUnitId: unit.parentId },
+            { adminUnit: { parentId: unit.parentId } },
           ],
         };
       }
@@ -96,20 +100,18 @@ export async function listByUnit(req: Request, res: Response, next: NextFunction
 
 /**
  * PATCH /api/users/me/ward
- * Update the citizen's ward — either by passing a wardId (manual)
- * or deviceLat/deviceLng (auto-detect nearest ward).
  */
 export async function updateMyWard(req: Request, res: Response, next: NextFunction) {
   try {
+    const lang = req.user?.lang || req.lang || 'en';
     const { wardId, deviceLat, deviceLng } = req.body;
 
     let resolvedWardId: string;
 
     if (wardId) {
-      // Manual selection from dropdown
       const ward = await prisma.adminUnit.findUnique({ where: { id: wardId } });
       if (!ward || ward.type !== 'WARD') {
-        throw new AppError(400, 'INVALID_WARD', 'wardId must reference an existing WARD');
+        throw new AppError(400, 'INVALID_WARD', tError('INVALID_WARD', lang));
       }
       resolvedWardId = wardId;
     } else {
@@ -128,7 +130,6 @@ export async function updateMyWard(req: Request, res: Response, next: NextFuncti
       select: { id: true, name: true, email: true, role: true, adminUnitId: true },
     });
 
-    // Audit log
     await prisma.auditLog.create({
       data: {
         actorId: req.user!.id,
@@ -148,8 +149,9 @@ export async function updateMyWard(req: Request, res: Response, next: NextFuncti
 
 export async function deleteUser(req: Request, res: Response, next: NextFunction) {
   try {
+    const lang = req.user?.lang || req.lang || 'en';
     const targetId = req.params.id as string;
-    const result = await userService.deleteUser(targetId, req.user!.id, req.user!.adminUnitId ?? null);
+    const result = await userService.deleteUser(targetId, req.user!.id, req.user!.adminUnitId ?? null, lang);
     res.json(result);
   } catch (err) {
     next(err);
@@ -158,9 +160,10 @@ export async function deleteUser(req: Request, res: Response, next: NextFunction
 
 export async function changePassword(req: Request, res: Response, next: NextFunction) {
   try {
+    const lang = req.user?.lang || req.lang || 'en';
     const targetId = req.params.id as string;
     const { newPassword } = req.body;
-    const result = await userService.changePassword(targetId, req.user!.id, req.user!.adminUnitId ?? null, newPassword);
+    const result = await userService.changePassword(targetId, req.user!.id, req.user!.adminUnitId ?? null, newPassword, lang);
     res.json(result);
   } catch (err) {
     next(err);
@@ -198,8 +201,27 @@ export async function uploadProfilePic(req: Request, res: Response, next: NextFu
 
 export async function changeMyPassword(req: Request, res: Response, next: NextFunction) {
   try {
+    const lang = req.user?.lang || req.lang || 'en';
     const { currentPassword, newPassword } = req.body;
-    const result = await userService.changeMyPassword(req.user!.id, currentPassword, newPassword);
+    const result = await userService.changeMyPassword(req.user!.id, currentPassword, newPassword, lang);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/users/me/language
+ * Update the authenticated user's language preference.
+ */
+export async function updateLanguage(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { lang } = req.body;
+    if (!lang) {
+      res.status(400).json({ code: 'VALIDATION_ERROR', message: 'lang is required (en or hi)' });
+      return;
+    }
+    const result = await userService.updateLanguagePreference(req.user!.id, lang);
     res.json(result);
   } catch (err) {
     next(err);

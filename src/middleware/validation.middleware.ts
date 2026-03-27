@@ -1,9 +1,10 @@
 /**
  * JanPramaan — Request validation middleware
  * Lightweight schema validation using a simple declarative approach.
- * For production, swap with Zod or Joi.
+ * Validation error messages are translated via i18n.
  */
 import { Request, Response, NextFunction } from 'express';
+import { tValidation } from '../i18n/index.js';
 
 interface FieldRule {
   field: string;
@@ -17,25 +18,26 @@ interface FieldRule {
  */
 export function validateBody(rules: FieldRule[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
+    const lang = req.user?.lang || req.lang || 'en';
     const errors: string[] = [];
 
     for (const rule of rules) {
       const value = req.body[rule.field];
 
       if (rule.required && (value === undefined || value === null || value === '')) {
-        errors.push(`${rule.field} is required`);
+        errors.push(tValidation('FIELD_REQUIRED', lang, rule.field));
         continue;
       }
 
       if (value !== undefined && value !== null) {
         if (rule.type === 'number' && typeof value !== 'number') {
-          errors.push(`${rule.field} must be a number`);
+          errors.push(tValidation('FIELD_MUST_NUMBER', lang, rule.field));
         }
         if (rule.type === 'string' && typeof value !== 'string') {
-          errors.push(`${rule.field} must be a string`);
+          errors.push(tValidation('FIELD_MUST_STRING', lang, rule.field));
         }
         if (rule.enum && !rule.enum.includes(value)) {
-          errors.push(`${rule.field} must be one of: ${rule.enum.join(', ')}`);
+          errors.push(tValidation('FIELD_MUST_ENUM', lang, rule.field, rule.enum.join(', ')));
         }
       }
     }

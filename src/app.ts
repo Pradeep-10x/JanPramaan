@@ -52,6 +52,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ─── i18n language detection ──────────────────────────────────────────
+import { i18nMiddleware } from './middleware/i18n.middleware';
+app.use(i18nMiddleware);
+
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.resolve(config.uploadDir)));
 // Serve demo / public static files

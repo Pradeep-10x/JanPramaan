@@ -37,7 +37,7 @@ export async function verifyOtpHandler(req: Request, res: Response, next: NextFu
       return;
     }
     // Mark the user as verified and get their login token
-    const result = await verifyAndLoginUser(email);
+    const result = await verifyAndLoginUser(email, otp, req.lang);
     
     res.json({ message: "Email verified successfully", verified: true, ...result });
   } catch (err) {
