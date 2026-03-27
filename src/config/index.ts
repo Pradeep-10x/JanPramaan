@@ -46,6 +46,12 @@ export const config = {
     token: process.env.TWILIO_TOKEN,
     from: process.env.TWILIO_FROM,
   },
+
+  /**
+   * Firebase service account for push notifications.
+   * Can be a file path or inline JSON string. If not set, push is disabled.
+   */
+  firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT || '',
 } as const;
 
 // Ensure upload directory exists (Render has ephemeral filesystem)

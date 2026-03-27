@@ -3,6 +3,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import * as notificationService from '../services/notification.service';
+import * as pushService from '../services/push.service';
 import { prisma } from '../prisma/client.js';
 
 export async function notifyForIssue(req: Request, res: Response, next: NextFunction) {
@@ -74,3 +75,40 @@ export async function markAllRead(req: Request, res: Response, next: NextFunctio
     next(err);
   }
 }
+
+/**
+ * POST /api/notify/push-token
+ * Register an FCM push token for the logged-in user.
+ */
+export async function registerPushToken(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { token, platform } = req.body;
+    if (!token || typeof token !== 'string' || token.trim().length === 0) {
+      res.status(400).json({ error: 'INVALID_TOKEN', message: 'token is required and must be a non-empty string' });
+      return;
+    }
+    const result = await pushService.registerToken(req.user!.id, token.trim(), platform);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/notify/push-token
+ * Unregister an FCM push token (e.g. on logout).
+ */
+export async function removePushToken(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { token } = req.body;
+    if (!token || typeof token !== 'string') {
+      res.status(400).json({ error: 'INVALID_TOKEN', message: 'token is required' });
+      return;
+    }
+    await pushService.removeToken(req.user!.id, token.trim());
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+

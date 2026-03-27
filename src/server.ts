@@ -4,8 +4,12 @@
 import app, { logger } from './app';
 import { config } from './config';
 import { runEscalationCheck } from './services/escalation.service.js';
+import { initFirebase } from './services/push.service.js';
 
 const PORT = config.port;
+
+// ─── Firebase push notifications ──────────────────────────────────────────────
+initFirebase();
 
 // ─── Escalation background job ────────────────────────────────────────────────
 // Runs every hour. First run is delayed 30 s to let the DB pool warm up.

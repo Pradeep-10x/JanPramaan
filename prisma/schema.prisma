@@ -50,6 +50,7 @@ model User {
   notifications    UserNotification[]
   comments         Comment[]          @relation("CommentAuthor")
   mentions         CommentMention[]   @relation("MentionedUser")
+  pushTokens       PushToken[]
 
   @@index([role])
   @@index([adminUnitId])
@@ -324,4 +325,16 @@ model EmailOtp {
 
   @@index([email, otp])
   @@map("email_otps")
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String
+  platform  String?  // "web" | "android" | "ios"
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
 }

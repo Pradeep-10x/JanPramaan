@@ -10,6 +10,7 @@ import { NotificationChannel, Role } from '../generated/prisma/client.js';
 import { haversineDistance } from '../utils/geo.util';
 import { parseResidentsCsv, ResidentRow } from '../utils/csv.util';
 import { config } from '../config';
+import { sendPush } from './push.service.js';
 
 /**
  * Import residents from a CSV buffer. Phone numbers are hashed for privacy.
@@ -108,6 +109,7 @@ export async function notifyNearbyResidents(
 
 /**
  * Create a single in-app notification for a user.
+ * Also fires a push notification to all registered devices (fire-and-forget).
  */
 export async function notify(
   userId: string,
@@ -115,7 +117,7 @@ export async function notify(
   body: string,
   meta?: { issueId?: string; projectId?: string },
 ) {
-  return prisma.userNotification.create({
+  const notification = await prisma.userNotification.create({
     data: {
       userId,
       title,
@@ -124,6 +126,11 @@ export async function notify(
       projectId: meta?.projectId,
     },
   });
+
+  // Fire-and-forget push — errors are logged, never thrown
+  sendPush(userId, title, body, meta).catch(() => {});
+
+  return notification;
 }
 
 /**

@@ -78,4 +78,57 @@ router.patch('/read-all',   authMiddleware, notificationsCtrl.markAllRead);
  */
 router.patch('/:id/read',   authMiddleware, notificationsCtrl.markRead);
 
+/**
+ * @openapi
+ * /api/notify/push-token:
+ *   post:
+ *     summary: Register an FCM push token for the current user
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token]
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: FCM device token
+ *               platform:
+ *                 type: string
+ *                 enum: [web, android, ios]
+ *                 default: web
+ *     responses:
+ *       201:
+ *         description: Push token registered
+ */
+router.post('/push-token',    authMiddleware, notificationsCtrl.registerPushToken);
+
+/**
+ * @openapi
+ * /api/notify/push-token:
+ *   delete:
+ *     summary: Unregister an FCM push token (e.g. on logout)
+ *     tags: [Notifications]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token]
+ *             properties:
+ *               token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Push token removed
+ */
+router.delete('/push-token',  authMiddleware, notificationsCtrl.removePushToken);
+
 export default router;
